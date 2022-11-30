@@ -99,14 +99,14 @@ def getPvTimestamps(w_path):
         print(f"fount empty pv header file in: {pv_csv_path}")
         return
     n_frames = len(lines) - 1
-    frame_timestamps = np.zeros(n_frames, dtype=np.longlong)
+    frame_timestamps = []
     for i_frame, frame in enumerate(lines[1:]):
         if 'nan' in frame:
             print(frame, "invalid pv header data")
             continue
         if len(frame) > 3:
             frame = frame.split(',')
-            frame_timestamps[i_frame] = int(frame[0])
+            frame_timestamps.append(int(frame[0]))
     return frame_timestamps
 
 

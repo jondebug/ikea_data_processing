@@ -61,4 +61,4 @@ def normalizeAllRecordingsInPath(path):
 
 if __name__ == '__main__':
     # w_path = Path(r'C:\HoloLens')
-    normalizeAllRecordingsInPath(r'C:\HoloLens\Table')
+    normalizeAllRecordingsInPath(r'C:\HoloLens')
