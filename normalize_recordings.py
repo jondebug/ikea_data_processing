@@ -1,12 +1,9 @@
 from pathlib import Path
-# from project_hand_eye_to_pv import project_hand_eye_to_pv
-# from utils import check_framerates, extract_tar_file
-# from save_pclouds import save_pclouds
-# from convert_images import convert_images
 from utils import *
 from glob import glob
 import numpy as np
 import os
+
 
 
 def createNormalizedFiles(rec_dir, pv_to_depth_hand_eye_mapping: dict, sensor_name="Depth Long Throw"):
@@ -17,7 +14,6 @@ def createNormalizedFiles(rec_dir, pv_to_depth_hand_eye_mapping: dict, sensor_na
     build_normalized_data_dir(w_path)
     for frame_number, pv_timestamp in enumerate(pv_to_depth_hand_eye_mapping.keys()):
         depth_ts, hand_eye_ts = pv_to_depth_hand_eye_mapping[pv_timestamp]
-        # print(depth_ts, hand_eye_ts)
         copyRenamePvImage(w_path, pv_timestamp, frame_number)
         copyRenameDepthImage(w_path, depth_ts, frame_number)
 
