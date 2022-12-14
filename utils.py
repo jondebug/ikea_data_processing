@@ -12,6 +12,17 @@ import numpy as np
 from hand_defs import HandJointIndex
 
 
+def get_list_from_file(self, filename):
+    """
+    retrieve a list of lines from a .txt file
+    :param :
+    :return: list of atomic actions
+    """
+    with open(filename) as f:
+        line_list = f.read().splitlines()
+    # line_list.sort()
+    return line_list
+
 def getNumRecordings(w_path):
     """
     recursively iterate over directory to get number of sub dirs
