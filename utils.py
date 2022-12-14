@@ -12,6 +12,13 @@ import numpy as np
 from hand_defs import HandJointIndex
 
 
+def getNumRecordings(w_path):
+    """
+    recursively iterate over directory to get number of sub dirs
+    """
+    return len([f for f in w_path.iterdir() if f.is_dir() and "_recDir" in str(w_path)[-8:]])
+
+
 def removeOriginalPvImages(w_path):
     orig_pv_path = w_path / "pv"
     assert (w_path / "norm" / "pv").exists()
