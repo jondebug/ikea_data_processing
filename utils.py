@@ -8,19 +8,82 @@ from project_hand_eye_to_pv import *
 import cv2
 import numpy as np
 # import cv2
+import random
+
 
 from hand_defs import HandJointIndex
 
 
-def createRecordingDirList(path, recording_directories_idx_target_file):
-    if "_recDir" in path[-8:]:
-        with open(recording_directories_idx_target_file, "a") as all_rec_idx_file:
-            all_rec_idx_file.write(path + "\n")
+def WriteListToFile(filename, line_list):
+    with open(filename) as f:
+        for line in line_list:
+            f.write(line)
+    return
+
+
+def getListFromFile(filename):
+    """
+    retrieve a list of lines from a .txt file
+    :param :
+    :return: list of atomic actions
+    """
+    with open(filename) as f:
+        line_list = f.read().splitlines()
+    # line_list.sort()
+    return line_list
+
+
+def createTrainTestFiles(dataset_dir, train_ratio = 0.7):
+    furniture_sep_rec_dir_list = [
+        (furniture_name, os.path.join(dataset_dir, "indexing_files", "{}_recording_dir_list.txt".format(furniture_name)))
+        for furniture_name in os.listdir(dataset_dir)
+        if os.path.isdir(os.path.join(dataset_dir, furniture_name)) and furniture_name != "indexing_files"]
+
+
+    all_train_recordings = []
+    all_test_recordings = []
+
+    for furniture_name, idx_file_path in furniture_sep_rec_dir_list:
+        # check that all furniture indexing files are created.
+        assert (os.path.exists(idx_file_path))
+
+        recording_dir_list = random.shuffle(getListFromFile(idx_file_path))
+        num_furniture_recordings = len(recording_dir_list)
+        num_train_recordings = int(train_ratio*num_furniture_recordings)
+        num_test_recordings = num_furniture_recordings - num_train_recordings
+        train_rec_list = recording_dir_list[:num_train_recordings]
+        test_rec_list = recording_dir_list[num_train_recordings:]
+        all_train_recordings += train_rec_list
+        all_test_recordings += test_rec_list
+        WriteListToFile(os.path.join(dataset_dir, "indexing_files", "{}_train_dir_list.txt".format(furniture_name)),
+                        train_rec_list)
+        WriteListToFile(os.path.join(dataset_dir, "indexing_files", "{}_test_dir_list.txt".format(furniture_name)),
+                        test_rec_list)
+
+    WriteListToFile(os.path.join(dataset_dir, "indexing_files", "all_train_dir_list.txt"),
+                    all_train_recordings)
+    WriteListToFile(os.path.join(dataset_dir, "indexing_files", "all_test_dir_list.txt"),
+                    all_test_recordings)
+
+
+
+
+    getListFromFile(recording_directories_idx_target_file)
+
+    with open(recording_directories_idx_target_file, "a") as all_rec_idx_file:
+        all_rec_idx_file.write(dataset_dir + "\n")
+    return
+
+
+def createAllRecordingDirList(dataset_dir, target_file):
+    if "_recDir" in dataset_dir[-8:]:
+        with open(target_file, "a") as all_rec_idx_file:
+            all_rec_idx_file.write(dataset_dir + "\n")
         return
 
-    for sub_dir in glob(rf"{path}\*\\"):
+    for sub_dir in glob(rf"{dataset_dir}\*\\"):
         print(f"calling process_all_recordings_in_path for path: {sub_dir}, continuing search for recording dir")
-        createRecordingDirList(sub_dir)
+        createAllRecordingDirList(sub_dir)
 
 
 def get_list_from_file(self, filename):
@@ -33,6 +96,7 @@ def get_list_from_file(self, filename):
         line_list = f.read().splitlines()
     # line_list.sort()
     return line_list
+
 
 def getNumRecordings(w_path):
     """
@@ -47,8 +111,6 @@ def removeOriginalPvImages(w_path):
     orig_pv_images = [f.path for f in os.scandir(orig_pv_path) if os.path.splitext(f)[-1] == '.png']
     for orig_pv_img in orig_pv_images:
         os.remove(orig_pv_img)
-
-
 
 
 def load_head_hand_eye_data(csv_path):
@@ -83,15 +145,14 @@ def load_head_hand_eye_data(csv_path):
 
         # right hand
         right_hand_transs_available[i_frame] = (
-            frame[left_start_id + joint_count * 4 * 4] == 1)
+                frame[left_start_id + joint_count * 4 * 4] == 1)
         right_start_id = left_start_id + joint_count * 4 * 4 + 1
         for i_j in range(joint_count):
             j_start_id = right_start_id + 16 * i_j
             j_trans = np.array(frame[j_start_id:j_start_id + 16].reshape((4, 4))).T[:3, 3]
             right_hand_transs[i_frame, i_j, :] = j_trans
 
-
-        assert(j_start_id + 16 == 851)
+        assert (j_start_id + 16 == 851)
         gaze_available[i_frame] = (frame[851] == 1)
         gaze_data[i_frame, :4] = frame[852:856]
         gaze_data[i_frame, 4:8] = frame[856:860]
@@ -102,14 +163,14 @@ def load_head_hand_eye_data(csv_path):
 
 
 def removeOriginalPlyFiles(w_path, sensor_name="Depth Long Throw"):
-
     orig_depth_path = w_path / "{}".format(sensor_name)
 
     assert (w_path / "norm" / "{}".format(sensor_name)).exists()
     orig_depth_ply_files = [f.path for f in os.scandir(orig_depth_path) if os.path.splitext(f)[-1] == '.ply']
     for orig_depth_ply in orig_depth_ply_files:
         os.remove(orig_depth_ply)
-    #print(f"going to remove the following files:{orig_depth_ply_files}")
+    # print(f"going to remove the following files:{orig_depth_ply_files}")
+
 
 def build_normalized_data_dir(w_path, sensor_name="Depth Long Throw"):
     norm_dir = Path(w_path / "norm")
@@ -136,7 +197,6 @@ def copyRenamePvImage(w_path, pv_timestamp, frame_number):
 
 
 def copyRenameDepthImage(w_path, depth_timestamp, frame_number, sensor_name="Depth Long Throw"):
-
     for file_format in ["pgm", "ply"]:
         original_depth_path = Path(w_path / sensor_name / f"{depth_timestamp}.{file_format}")
         norm_depth_path = Path(w_path / "norm" / sensor_name / f"{frame_number}.{file_format}")
@@ -159,6 +219,7 @@ def copyRenameHandEyeImage(w_path, pv_to_depth_hand_eye_mapping):
         for frame_number, pv_timestamp in enumerate(pv_to_depth_hand_eye_mapping.keys()):
             depth_ts, hand_eye_ts = pv_to_depth_hand_eye_mapping[pv_timestamp]
             norm_csvreader.writerow([frame_number] + hand_eye_dict[hand_eye_ts][1:])
+
 
 #
 
@@ -192,6 +253,7 @@ def getDepthTimestamps(w_path, sensor_name, depth_path_suffix):
         depth_timestamp = extract_timestamp(path, depth_path_suffix)
         depth_timestamps[i_path] = depth_timestamp
     return depth_timestamps
+
 
 def getPvTimestamps(w_path):
     pv_csv_path = list(w_path.glob('*pv.txt'))[0]
@@ -276,26 +338,25 @@ def processHandEyeData(folder):
                 transs, avail = hand
                 if avail[hand_ts]:
                     for joint_num, joint in enumerate(transs[hand_ts]):
-
                         hand_tr = joint.reshape((1, 3))
-                        hand_data_row += list(hand_tr.reshape(3)) #adding 3d joint point to row.
+                        hand_data_row += list(hand_tr.reshape(3))  # adding 3d joint point to row.
                         # print(data_row)
                         xy, _ = cv2.projectPoints(hand_tr, rvec, tvec, K, None)
                         ixy = (int(xy[0][0][0]), int(xy[0][0][1]))
                         ixy = (width - ixy[0], ixy[1])
                         # print(ixy)
-                        hand_data_row += [ixy[0], ixy[1]] #adding joint x,y projection to row.
+                        hand_data_row += [ixy[0], ixy[1]]  # adding joint x,y projection to row.
                 else:
-                    hand_data_row += list(np.zeros(HandJointIndex.Count.value*5))
+                    hand_data_row += list(np.zeros(HandJointIndex.Count.value * 5))
 
             if gaze_available[hand_ts]:
                 point = get_eye_gaze_point(gaze_data[hand_ts])
-                eye_data_row += list(gaze_data[hand_ts][:3]) #add origin_homog
-                eye_data_row += list(point) #adding 3d pupil point to row.
+                eye_data_row += list(gaze_data[hand_ts][:3])  # add origin_homog
+                eye_data_row += list(point)  # adding 3d pupil point to row.
                 xy, _ = cv2.projectPoints(point.reshape((1, 3)), rvec, tvec, K, None)
                 ixy = (int(xy[0][0][0]), int(xy[0][0][1]))
                 ixy = (width - ixy[0], ixy[1])
-                eye_data_row += [ixy[0], ixy[1]] #adding pupil x,y projection to row.
+                eye_data_row += [ixy[0], ixy[1]]  # adding pupil x,y projection to row.
                 if pv_id % 500 == 0:
                     print(width, ixy[0], ixy[1])
                     print(f"saving hand_eye processed data number {pv_id}")
@@ -304,12 +365,5 @@ def processHandEyeData(folder):
 
             eye_csvwriter.writerow(eye_data_row)
             hand_csvwriter.writerow(hand_data_row)
-            #cv2.imwrite(str(output_folder / 'hands') + 'proj{}.png'.format(str(sample_timestamp).zfill(4)), img)
+            # cv2.imwrite(str(output_folder / 'hands') + 'proj{}.png'.format(str(sample_timestamp).zfill(4)), img)
             # cv2.imwrite(f"{output_folder}/{str(sample_timestamp)}.png", img)
-
-
-
-
-
-
-
