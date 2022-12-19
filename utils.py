@@ -67,14 +67,6 @@ def createTrainTestFiles(dataset_dir, train_ratio = 0.7):
 
 
 
-
-    getListFromFile(recording_directories_idx_target_file)
-
-    with open(recording_directories_idx_target_file, "a") as all_rec_idx_file:
-        all_rec_idx_file.write(dataset_dir + "\n")
-    return
-
-
 def createAllRecordingDirList(dataset_dir, target_file):
     if "_recDir" in dataset_dir[-8:]:
         with open(target_file, "a") as all_rec_idx_file:
