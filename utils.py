@@ -15,7 +15,7 @@ from hand_defs import HandJointIndex
 
 
 def WriteListToFile(filename, line_list):
-    with open(filename) as f:
+    with open(filename, "w") as f:
         for line in line_list:
             f.write(line)
     return
@@ -33,12 +33,16 @@ def getListFromFile(filename):
     return line_list
 
 
-def createTrainTestFiles(dataset_dir, train_ratio = 0.7):
+def getSepereateFurnitureRecLists(dataset_dir):
     furniture_sep_rec_dir_list = [
         (furniture_name, os.path.join(dataset_dir, "indexing_files", "{}_recording_dir_list.txt".format(furniture_name)))
         for furniture_name in os.listdir(dataset_dir)
         if os.path.isdir(os.path.join(dataset_dir, furniture_name)) and furniture_name != "indexing_files"]
+    return furniture_sep_rec_dir_list
 
+
+def createTrainTestFiles(dataset_dir, train_ratio=0.7):
+    furniture_sep_rec_dir_list = getSepereateFurnitureRecLists(dataset_dir)
 
     all_train_recordings = []
     all_test_recordings = []
@@ -46,8 +50,9 @@ def createTrainTestFiles(dataset_dir, train_ratio = 0.7):
     for furniture_name, idx_file_path in furniture_sep_rec_dir_list:
         # check that all furniture indexing files are created.
         assert (os.path.exists(idx_file_path))
-
-        recording_dir_list = random.shuffle(getListFromFile(idx_file_path))
+        print(idx_file_path)
+        recording_dir_list = getListFromFile(idx_file_path)
+        random.shuffle(recording_dir_list)
         num_furniture_recordings = len(recording_dir_list)
         num_train_recordings = int(train_ratio*num_furniture_recordings)
         num_test_recordings = num_furniture_recordings - num_train_recordings
@@ -65,17 +70,23 @@ def createTrainTestFiles(dataset_dir, train_ratio = 0.7):
     WriteListToFile(os.path.join(dataset_dir, "indexing_files", "all_test_dir_list.txt"),
                     all_test_recordings)
 
-
-
-def createAllRecordingDirList(dataset_dir, target_file):
+def aux_createAllRecordingDirList(dataset_dir, target_file):
     if "_recDir" in dataset_dir[-8:]:
         with open(target_file, "a") as all_rec_idx_file:
             all_rec_idx_file.write(dataset_dir + "\n")
         return
 
     for sub_dir in glob(rf"{dataset_dir}\*\\"):
-        print(f"calling process_all_recordings_in_path for path: {sub_dir}, continuing search for recording dir")
-        createAllRecordingDirList(sub_dir)
+        print(f"calling aux_createAllRecordingDirList for path: {sub_dir}, continuing search for recording dir")
+        aux_createAllRecordingDirList(sub_dir, target_file)
+
+
+def createAllRecordingDirList(dataset_dir, target_file):
+    if os.path.exists(target_file):
+        os.remove(target_file)
+
+    print(f"calling aux_createAllRecordingDirList for top path: {dataset_dir}, continuing search for recording dir")
+    aux_createAllRecordingDirList(dataset_dir, target_file)
 
 
 def get_list_from_file(self, filename):
