@@ -33,7 +33,7 @@ def getListFromFile(filename):
     return line_list
 
 
-def getSepereateFurnitureRecLists(dataset_dir):
+def getSepereateFurnitureRecDirLists(dataset_dir):
     furniture_sep_rec_dir_list = [
         (furniture_name, os.path.join(dataset_dir, "indexing_files", "{}_recording_dir_list.txt".format(furniture_name)))
         for furniture_name in os.listdir(dataset_dir)
@@ -42,7 +42,7 @@ def getSepereateFurnitureRecLists(dataset_dir):
 
 
 def createTrainTestFiles(dataset_dir, train_ratio=0.7):
-    furniture_sep_rec_dir_list = getSepereateFurnitureRecLists(dataset_dir)
+    furniture_sep_rec_dir_list = getSepereateFurnitureRecDirLists(dataset_dir)
 
     all_train_recordings = []
     all_test_recordings = []
