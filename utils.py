@@ -12,6 +12,17 @@ import numpy as np
 from hand_defs import HandJointIndex
 
 
+def createRecordingDirList(path, recording_directories_idx_target_file):
+    if "_recDir" in path[-8:]:
+        with open(recording_directories_idx_target_file, "a") as all_rec_idx_file:
+            all_rec_idx_file.write(path + "\n")
+        return
+
+    for sub_dir in glob(rf"{path}\*\\"):
+        print(f"calling process_all_recordings_in_path for path: {sub_dir}, continuing search for recording dir")
+        createRecordingDirList(sub_dir)
+
+
 def get_list_from_file(self, filename):
     """
     retrieve a list of lines from a .txt file
