@@ -1,19 +1,12 @@
 import json
 # from pathlib import Path
 import os
-from utils import createAllRecordingDirList, createTrainTestFiles, getListFromFile, writeListToFile
+from utils import createAllRecordingDirList, createTrainTestFiles, getListFromFile, writeListToFile, getAllJsonAnnotations
 
 
-def getAllJsonAnnotations(dataset_dir):
-    if "_recDir" in dataset_dir[-8:]:
-        with open(target_file, "a") as all_rec_idx_file:
-            all_rec_idx_file.write(dataset_dir + "\n")
-        return
-
-    for sub_dir in glob(rf"{dataset_dir}\*\\"):
-        print(f"calling aux_createAllRecordingDirList for path: {sub_dir}, continuing search for recording dir")
-        read_json_annotations(sub_dir, target_file)
-
+def createAnnotationJson(dataset_dir):
+    all_annotations = getAllJsonAnnotations(dataset_dir=dataset_dir, merged_json={})
+    print(all_annotations)
 
 
 
@@ -24,7 +17,6 @@ def copyActionList(dataset_dir, action_list_txt_file=""):
     action_list = getListFromFile(action_list_txt_file)
     print(action_list)
     writeListToFile(filename=os.path.join(dataset_dir,"indexing_files", "action_list.txt"), line_list=action_list)
-
 
 
 def createSeperateFurnitureRecLists(dataset_dir):

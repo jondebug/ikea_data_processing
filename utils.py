@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 # import cv2
 import random
-
+import json
 
 from hand_defs import HandJointIndex
 
@@ -18,6 +18,29 @@ def searchForJson(dir):
 
     for sub_dir in glob(rf"{dir}\*\\"):
         if ".json" in sub_dir[-4:]:
+            return sub_dir
+
+    return None
+
+
+def getAllJsonAnnotations(dataset_dir, merged_json=None):
+
+    if merged_json is None:
+        merged_json = {}
+
+    if "_recDir" in dataset_dir[-8:]:
+        json_file = searchForJson(dataset_dir)
+        if json_file:
+            print("found json file {}".format(json_file))
+            with open(json_file) as json_file_obj:
+                current_json = json.load(json_file_obj)
+                merged_json = {key: value for (key, value) in (merged_json.items() + current_json.items())}
+            print(merged_json)
+
+    for sub_dir in glob(rf"{dataset_dir}\*\\"):
+        print(
+            f"calling aux_createAllRecordingDirList for path: {sub_dir}, continuing search for recording dir")
+        getAllJsonAnnotations(sub_dir, merged_json)
 
 
 def writeListToFile(filename, line_list):
