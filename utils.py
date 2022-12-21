@@ -16,7 +16,9 @@ from hand_defs import HandJointIndex
 
 def writeListToFile(filename, line_list):
     with open(filename, "w") as f:
-        f.writelines(line_list)
+        for line in line_list:
+            #FIXME: maybe remove this \n
+            f.writelines(line + "\n")
     return
 
 

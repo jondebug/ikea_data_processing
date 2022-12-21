@@ -9,6 +9,7 @@ def copyActionList(dataset_dir, action_list_txt_file=""):
     if action_list_txt_file == "":
         action_list_txt_file = os.path.join(os.getcwd(), "action_list.txt")
     action_list = getListFromFile(action_list_txt_file)
+    print(action_list)
     writeListToFile(filename=os.path.join(dataset_dir,"indexing_files", "action_list.txt"), line_list=action_list)
 
 
