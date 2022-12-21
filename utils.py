@@ -14,10 +14,9 @@ import random
 from hand_defs import HandJointIndex
 
 
-def WriteListToFile(filename, line_list):
+def writeListToFile(filename, line_list):
     with open(filename, "w") as f:
-        for line in line_list:
-            f.write(line)
+        f.writelines(line_list)
     return
 
 
@@ -60,14 +59,14 @@ def createTrainTestFiles(dataset_dir, train_ratio=0.7):
         test_rec_list = recording_dir_list[num_train_recordings:]
         all_train_recordings += train_rec_list
         all_test_recordings += test_rec_list
-        WriteListToFile(os.path.join(dataset_dir, "indexing_files", "{}_train_dir_list.txt".format(furniture_name)),
+        writeListToFile(os.path.join(dataset_dir, "indexing_files", "{}_train_dir_list.txt".format(furniture_name)),
                         train_rec_list)
-        WriteListToFile(os.path.join(dataset_dir, "indexing_files", "{}_test_dir_list.txt".format(furniture_name)),
+        writeListToFile(os.path.join(dataset_dir, "indexing_files", "{}_test_dir_list.txt".format(furniture_name)),
                         test_rec_list)
 
-    WriteListToFile(os.path.join(dataset_dir, "indexing_files", "all_train_dir_list.txt"),
+    writeListToFile(os.path.join(dataset_dir, "indexing_files", "all_train_dir_list.txt"),
                     all_train_recordings)
-    WriteListToFile(os.path.join(dataset_dir, "indexing_files", "all_test_dir_list.txt"),
+    writeListToFile(os.path.join(dataset_dir, "indexing_files", "all_test_dir_list.txt"),
                     all_test_recordings)
 
 def aux_createAllRecordingDirList(dataset_dir, target_file):
@@ -87,18 +86,6 @@ def createAllRecordingDirList(dataset_dir, target_file):
 
     print(f"calling aux_createAllRecordingDirList for top path: {dataset_dir}, continuing search for recording dir")
     aux_createAllRecordingDirList(dataset_dir, target_file)
-
-
-def get_list_from_file(self, filename):
-    """
-    retrieve a list of lines from a .txt file
-    :param :
-    :return: list of atomic actions
-    """
-    with open(filename) as f:
-        line_list = f.read().splitlines()
-    # line_list.sort()
-    return line_list
 
 
 def getNumRecordings(w_path):

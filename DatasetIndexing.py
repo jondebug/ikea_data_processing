@@ -1,7 +1,16 @@
 import json
 # from pathlib import Path
 import os
-from utils import createAllRecordingDirList, createTrainTestFiles
+from utils import createAllRecordingDirList, createTrainTestFiles, getListFromFile, writeListToFile
+
+
+def copyActionList(dataset_dir, action_list_txt_file=""):
+
+    if action_list_txt_file == "":
+        action_list_txt_file = os.path.join(os.getcwd(), "action_list.txt")
+    action_list = getListFromFile(action_list_txt_file)
+    writeListToFile(filename=os.path.join(dataset_dir,"indexing_files", "action_list.txt"), line_list=action_list)
+
 
 
 def createSeperateFurnitureRecLists(dataset_dir):
@@ -15,14 +24,15 @@ def createSeperateFurnitureRecLists(dataset_dir):
 
 def createAllIndexingFiles(dataset_dir):
     # w_path = Path(dataset_dir)
-    indexing_files_path = os.path.join(dataset_dir, "indexing_files")
-
-    if not os.path.exists(indexing_files_path): os.mkdir(indexing_files_path)
-
-    recording_dir_list_path = os.path.join(indexing_files_path, "all_recording_dir_list.txt")
-    createAllRecordingDirList(dataset_dir=dataset_dir, target_file=recording_dir_list_path)
-    createSeperateFurnitureRecLists(dataset_dir)
-    createTrainTestFiles(dataset_dir=dataset_dir)
+    # indexing_files_path = os.path.join(dataset_dir, "indexing_files")
+    #
+    # if not os.path.exists(indexing_files_path): os.mkdir(indexing_files_path)
+    #
+    # recording_dir_list_path = os.path.join(indexing_files_path, "all_recording_dir_list.txt")
+    # createAllRecordingDirList(dataset_dir=dataset_dir, target_file=recording_dir_list_path)
+    # createSeperateFurnitureRecLists(dataset_dir)
+    # createTrainTestFiles(dataset_dir=dataset_dir)
+    copyActionList(dataset_dir=dataset_dir)
 
 if __name__ == "__main__":
     work_dir = r'C:\HoloLens'
