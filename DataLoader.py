@@ -2,7 +2,7 @@
 from torch.utils.data import Dataset
 from pathlib import Path
 import os
-from utils import getNumRecordings, get_list_from_file
+from utils import getNumRecordings, getListFromFile
 
 
 class HololensStreamRecDataset(Dataset):

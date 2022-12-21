@@ -14,6 +14,12 @@ import random
 from hand_defs import HandJointIndex
 
 
+def searchForJson(dir):
+
+    for sub_dir in glob(rf"{dir}\*\\"):
+        if ".json" in sub_dir[-4:]:
+
+
 def writeListToFile(filename, line_list):
     with open(filename, "w") as f:
         for line in line_list:

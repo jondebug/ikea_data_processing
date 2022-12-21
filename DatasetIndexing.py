@@ -4,6 +4,19 @@ import os
 from utils import createAllRecordingDirList, createTrainTestFiles, getListFromFile, writeListToFile
 
 
+def getAllJsonAnnotations(dataset_dir):
+    if "_recDir" in dataset_dir[-8:]:
+        with open(target_file, "a") as all_rec_idx_file:
+            all_rec_idx_file.write(dataset_dir + "\n")
+        return
+
+    for sub_dir in glob(rf"{dataset_dir}\*\\"):
+        print(f"calling aux_createAllRecordingDirList for path: {sub_dir}, continuing search for recording dir")
+        read_json_annotations(sub_dir, target_file)
+
+
+
+
 def copyActionList(dataset_dir, action_list_txt_file=""):
 
     if action_list_txt_file == "":
