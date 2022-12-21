@@ -38,8 +38,10 @@ def createAllIndexingFiles(dataset_dir):
     # createAllRecordingDirList(dataset_dir=dataset_dir, target_file=recording_dir_list_path)
     # createSeperateFurnitureRecLists(dataset_dir)
     # createTrainTestFiles(dataset_dir=dataset_dir)
-    copyActionList(dataset_dir=dataset_dir)
+    # copyActionList(dataset_dir=dataset_dir)
+    createAnnotationJson(dataset_dir=dataset_dir)
+
 
 if __name__ == "__main__":
-    work_dir = r'C:\HoloLens'
+    work_dir = r'C:\Users\Hololens\test_json_collection_recDir'
     createAllIndexingFiles(work_dir)
