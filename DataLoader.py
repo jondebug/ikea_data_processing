@@ -1,16 +1,16 @@
-
 from torch.utils.data import Dataset
 from pathlib import Path
 import os
 from utils import getNumRecordings, getListFromFile
 import json
 
-class HololensStreamRecBase():
 
+class HololensStreamRecBase():
     """Face Landmarks dataset."""
-    def __init__(self,  dataset_path, furniture_list: list, action_list_filename='action_list.txt',
+
+    def __init__(self, dataset_path, furniture_list: list, action_list_filename='action_list.txt',
                  train_filename='all_train_dir_list.txt', test_filename='all_train_dir_list.txt', transform=None,
-                 gt_annotation_filename = 'db_gt_annotations.json'):
+                 gt_annotation_filename='db_gt_annotations.json'):
         """
         Args:
             action_list_filename (string): Path to the csv file with annotations.
@@ -30,7 +30,7 @@ class HololensStreamRecBase():
         self.furniture_dir_sizes = [getNumRecordings(_dir_) for _dir_ in self.furniture_dirs]
         self.num_recordings = sum(self.furniture_dir_sizes)
 
-        #indexing_files:
+        # indexing_files:
         self.gt_annotation_filename = os.path.join(dataset_path, 'indexing_files', gt_annotation_filename)
         self.action_list_filename = os.path.join(dataset_path, 'indexing_files', action_list_filename)
         self.train_filename = os.path.join(dataset_path, 'indexing_files', train_filename)
@@ -42,7 +42,7 @@ class HololensStreamRecBase():
         if "NA" in self.action_list:
             self.action_list.remove("NA")
 
-        self.action_list.insert(0, "NA")  #  0 label for unlabled frames
+        self.action_list.insert(0, "NA")  # 0 label for unlabled frames
         self.num_classes = len(self.action_list)
         self.trainset_video_list = self.getListFromFile(self.train_filename)
         self.testset_video_list = self.getListFromFile(self.test_filename)
@@ -94,22 +94,24 @@ class HololensStreamRecBase():
 
 
 class HololensStreamRecClipDataset(HololensStreamRecBase):
-    def __init__(self, dataset_path, db_filename='ikea_annotation_db_full',
-                 action_list_filename='atomic_action_list.txt',
-                 action_object_relation_filename='action_object_relation_list.txt',
-                 train_filename='train_cross_env.txt',
-                 test_filename='test_cross_env.txt', transform=None, set='test', camera='dev3', frame_skip=1,
-                 frames_per_clip=64, resize=None, mode='vid', input_type='rgb'):
-        super().__init__( dataset_path, furniture_list: list, action_list_filename='action_list.txt',
-                 train_filename='all_train_dir_list.txt', test_filename='all_train_dir_list.txt', transform=None)
-        self.mode = mode
+    def __init__(self, dataset_path, furniture_list: list, action_list_filename='action_list.txt',
+                 train_filename='all_train_dir_list.txt', test_filename='all_train_dir_list.txt', transform=None,
+                 gt_annotation_filename='db_gt_annotations.json', modalities="all", frame_skip=1, frames_per_clip=32,
+                 set="train"):
+
+        super().__init__(dataset_path, furniture_list, action_list_filename,
+                         train_filename, test_filename, transform, gt_annotation_filename)
+
+        # self.camera = camera
+        # self.resize = resize
+        # self.input_type = input_type
+
+        self.modalities = modalities
         self.transform = transform
         self.set = set
-        self.camera = camera
         self.frame_skip = frame_skip
         self.frames_per_clip = frames_per_clip
-        self.resize = resize
-        self.input_type = input_type
+
         if self.set == 'train':
             self.video_list = self.trainset_video_list
         elif self.set == 'test':
