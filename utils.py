@@ -27,9 +27,9 @@ def searchForJson(_dir_):
 def applyMappingToAnnotations(action_annotation_list, id_to_name):
     action_labels = []
     for encoded_annotation in action_annotation_list:
-        segment = [encoded_annotation["start"], encoded_annotation["end"]]
+        segment = [int(np.round(15*encoded_annotation["start"])), int(np.round(15*encoded_annotation["end"]))]
         label = id_to_name[encoded_annotation["action"]]
-        decoded_label ={"segment":segment, "label":label}
+        decoded_label ={"segment": segment, "label": label}
         action_labels.append(decoded_label)
     return action_labels
 
@@ -37,16 +37,18 @@ def applyMappingToAnnotations(action_annotation_list, id_to_name):
 def getIdToNameMapping(action_label_data: list):
     id_to_name = {}
     for single_id_map in action_label_data:
-        _id_ = single_id_map["map"]
+        # print(single_id_map)
+        _id_ = single_id_map["id"]
         name = single_id_map["name"]
         id_to_name[_id_] = name
     print(id_to_name)
     return id_to_name
 
 
-def decodeJsonAnnotations(current_json):
-    id_to_name = getIdToNameMapping(current_json["actionLabelData"])
-    action_labels = applyMappingToAnnotations(current_json["actionAnnotationList"], id_to_name)
+def decodeJsonAnnotations(current_json_annotation:dict):
+    print(f"current_json_annotation: {current_json_annotation.keys()}")
+    id_to_name = getIdToNameMapping(current_json_annotation["config"]["actionLabelData"])
+    action_labels = applyMappingToAnnotations(current_json_annotation["annotation"]["actionAnnotationList"], id_to_name)
     print(action_labels)
     return action_labels
 
@@ -59,7 +61,7 @@ def getAllJsonsInDirList(dir_list, merged_json, subset):
             with open(json_file) as json_file_obj:
                 current_json = json.load(json_file_obj)
                 #add error check if json file already exists in database
-                merged_json["database"][json_file] = {"subset":subset,"annotation":decodeJsonAnnotations(current_json["annotation"])}
+                merged_json["database"][json_file] = {"subset": subset, "annotation": decodeJsonAnnotations(current_json)}
         else:
             print(f"path {_dir_} does not have json yet")
 
