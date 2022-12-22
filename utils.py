@@ -86,11 +86,11 @@ def getAllJsonAnnotations(dataset_dir, merged_json=None):
     getAllJsonsInDirList(train_dir_list, merged_json, "training")
     print(merged_json)
 
-    with open(os.path.join(dataset_dir, "indexing_files", "new_json.json"), "w") as new_json_file_obj:
+    with open(os.path.join(dataset_dir, "indexing_files", "db_gt_annotations.json"), "w") as new_json_file_obj:
         print(merged_json)
         merged_json = json.dumps(merged_json)
         new_json_file_obj.write(merged_json)
-
+        return
 
 def writeListToFile(filename, line_list):
     with open(filename, "w") as f:
@@ -170,7 +170,7 @@ def createAllRecordingDirList(dataset_dir, target_file):
 
 def getNumRecordings(w_path):
     """
-    recursively iterate over directory to get number of sub dirs
+    recursively iterate over directory to get number of sub dirs containing recordings
     """
     return len([f for f in w_path.iterdir() if f.is_dir() and "_recDir" in str(w_path)[-8:]])
 

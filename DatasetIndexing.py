@@ -5,8 +5,7 @@ from utils import createAllRecordingDirList, createTrainTestFiles, getListFromFi
 
 
 def createAnnotationJson(dataset_dir):
-    all_annotations = getAllJsonAnnotations(dataset_dir=dataset_dir, merged_json={})
-    print(all_annotations)
+    getAllJsonAnnotations(dataset_dir=dataset_dir, merged_json={})
 
 
 
