@@ -21,9 +21,9 @@ def getNumFrames(_dir_):
 
 def searchForJson(_dir_):
     for sub_dir in os.listdir(_dir_):
-        print("lets look at {}".format(sub_dir))
+        # print("lets look at {}".format(sub_dir))
         if ".json" in sub_dir[-5:]:
-            print("found {}".format(sub_dir))
+            # print("found {}".format(sub_dir))
             return os.path.join(_dir_, sub_dir)
 
     return None
@@ -37,6 +37,11 @@ def applyMappingToAnnotations(action_annotation_list, id_to_name):
         decoded_label = {"segment": segment, "label": label}
         action_labels.append(decoded_label)
     return action_labels
+
+def removeBackslashT(action_labels):
+    for annotation_num in range(len(action_labels)):
+        action_labels[annotation_num]["label"] = action_labels[annotation_num]["label"].replace("\t", " ")
+        print(action_labels[annotation_num]["label"])
 
 
 def getIdToNameMapping(action_label_data: list):
@@ -54,6 +59,7 @@ def decodeJsonAnnotations(current_json_annotation: dict):
     print(f"current_json_annotation: {current_json_annotation.keys()}")
     id_to_name = getIdToNameMapping(current_json_annotation["config"]["actionLabelData"])
     action_labels = applyMappingToAnnotations(current_json_annotation["annotation"]["actionAnnotationList"], id_to_name)
+    removeBackslashT(action_labels)
     print(action_labels)
     return action_labels
 
@@ -67,7 +73,7 @@ def getAllJsonsInDirList(dir_list, merged_json, subset):
             with open(json_file) as json_file_obj:
                 current_json = json.load(json_file_obj)
                 # add error check if json file already exists in database
-                merged_json["database"][json_file] = {"subset": subset,
+                merged_json["database"][_dir_] = {"subset": subset,
                                                       "annotation": decodeJsonAnnotations(current_json)}
         else:
             print(f"path {_dir_} does not have json yet")
@@ -179,7 +185,7 @@ def getNumRecordings(w_path):
     """
     recursively iterate over directory to get number of sub dirs containing recordings
     """
-    return len([f for f in w_path.iterdir() if f.is_dir() and "_recDir" in str(w_path)[-8:]])
+    return len([f for f in Path(w_path).iterdir() if f.is_dir() and "_recDir" in str(w_path)[-8:]])
 
 
 def removeOriginalPvImages(w_path):

@@ -1,4 +1,5 @@
-NA -
+N/A
+application interface
 attach back panel
 pick up back panel
 pick up bottom panel
@@ -31,14 +32,17 @@ flip partially constructed coffee table
 insert pin (wood peg)
 pick up pin (wood peg)
 pick up screwdriver
+lay down screwdriver
+lay down leg
 spin screwdriver
 allign side panel
 attach side panel
 pick up side panel
 turn side panel
-allign small coffee table screw
-pick up small coffee table screw
+allign small screw
+pick up small screw
 flip table top
 pick up table top
 flip whole coffee table
 flip whole drawer
+flip whole table

@@ -1,5 +1,5 @@
-from torch.utils.data import Dataset
-from pathlib import Path
+# from torch.utils.data import Dataset
+# from pathlib import Path
 import numpy as np
 import os
 from utils import getNumRecordings, getListFromFile, getNumFrames
@@ -38,18 +38,18 @@ class HololensStreamRecBase():
         self.test_filename = os.path.join(dataset_path, 'indexing_files', test_filename)
 
         # load lists from files:
-        self.action_list = self.get_list_from_file(self.action_list_filename)
+        self.action_list = getListFromFile(self.action_list_filename)
         self.action_list.sort()
-        if "NA" in self.action_list:
-            self.action_list.remove("NA")
+        if "N/A" in self.action_list:
+            self.action_list.remove("N/A")
 
-        self.action_list.insert(0, "NA")  # 0 label for unlabled frames
+        self.action_list.insert(0, "N/A")  # 0 label for unlabled frames
         self.num_classes = len(self.action_list)
-        self.train_video_list = self.getListFromFile(self.train_filename)
-        self.test_video_list = self.getListFromFile(self.test_filename)
-        self.all_video_list = self.testset_video_list + self.trainset_video_list
+        self.train_video_list = getListFromFile(self.train_filename)
+        self.test_video_list = getListFromFile(self.test_filename)
+        self.all_video_list = self.test_video_list + self.train_video_list
         self.action_id_mapping = {}
-        for action, action_id in enumerate(self.action_list): self.action_id_mapping[action] = action_id
+        for action, action_id in enumerate(self.action_list): self.action_id_mapping[action_id] = action
         print(self.action_id_mapping)
     def __enter__(self):
         return self
@@ -77,21 +77,30 @@ class HololensStreamRecBase():
             raise ValueError("Invalid dataset name")
 
         print("using json annotation file {}".format(self.gt_annotation_filename))
-        with open(self.gt_annotation_filename) as json_file_obj:
-            db_gt_annotations = json.load(json_file_obj)
+        # with open(self.gt_annotation_filename) as json_file_obj:
+        #     db_gt_annotations = json.load(json_file_obj)
 
         for _dir_ in rec_list:
             row = {"nframes": getNumFrames(_dir_), 'video_path': _dir_}
 
-            if dataset != all:
-                assert dataset in db_gt_annotations["database"][_dir_]["subset"]
+            # if dataset != all:
+                # print(dataset, db_gt_annotations["database"][_dir_]["subset"])
+                # assert dataset in db_gt_annotations["database"][_dir_]["subset"]
             video_data_table.append(row)
+        return video_data_table
+
 
     def get_video_annotations_table(self, video_path):
         with open(self.gt_annotation_filename) as json_file_obj:
             db_gt_annotations = json.load(json_file_obj)
+        # print(db_gt_annotations.keys())
+        # print(db_gt_annotations["database"].keys())
 
-        return db_gt_annotations["database"][video_path]["annotations"]
+        if video_path in db_gt_annotations["database"].keys():
+            return db_gt_annotations["database"][video_path]["annotation"]
+        else:
+            return None
+
 
     def get_video_table(self, video_idx):
         """
@@ -128,9 +137,9 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         self.frames_per_clip = frames_per_clip
 
         if self.set == 'train':
-            self.video_list = self.trainset_video_list
+            self.video_list = self.train_video_list
         elif self.set == 'test':
-            self.video_list = self.testset_video_list
+            self.video_list = self.test_video_list
         else:
             raise ValueError("Invalid set name")
 
@@ -151,10 +160,21 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
             rec_frame_labels = np.zeros((self.num_classes, n_frames), np.float32)  # allow multi-class representation
             rec_frame_labels[0, :] = np.ones((1, n_frames),
                                              np.float32)  # initialize all frames as NA
-            video_id = row['id']
+            # video_id = row['id']
             annotation_table = self.get_video_annotations_table(video_path)
+            if not annotation_table:
+                print(f"reached an unannotated directory: {video_path}!!!")
+                continue
             for ann_row in annotation_table:
                 action = ann_row["label"]  # map the labels
+
+                if action == 'pick up small coffee table screw': action = 'pick up small screw'
+                if action == 'allign small coffee table screw': action = 'allign small screw'
+                if action =='vr interface interaction' : action = 'application interface'
+                if action == 'spin screw': action = 'spin screwdriver'
+                if action == 'pick up back panel ': action = 'pick up back panel'
+                if action == 'application interface ': action = 'application interface'
+
                 action_id = self.action_id_mapping[action]
                 # object_id = ann_row["object_id"]
                 # action_id = self.get_action_id(atomic_action_id, object_id)
@@ -163,12 +183,12 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
                 end_frame = end_frame if end_frame < n_frames else n_frames
                 if action is not None:
                     rec_frame_labels[:, start_frame:end_frame] = 0  # remove the N/A
-                    rec_frame_labels[action_id, ann_row['starting_frame']:end_frame] = 1
-
+                    rec_frame_labels[action_id, start_frame:end_frame] = 1
+                    # print(rec_frame_labels)
             vid_list.append(
                 (video_path, rec_frame_labels, n_frames))  # 0 = duration - irrelevant for initial tests, used for start
         return vid_list
-    #
+
     # def get_clips(self):
     #     # extract equal length video clip segments from the full video dataset
     #     clip_dataset = []

@@ -15,7 +15,7 @@ def copyActionList(dataset_dir, action_list_txt_file=""):
         action_list_txt_file = os.path.join(os.getcwd(), "action_list.txt")
     action_list = getListFromFile(action_list_txt_file)
     print(action_list)
-    writeListToFile(filename=os.path.join(dataset_dir,"indexing_files", "action_list.txt"), line_list=action_list)
+    writeListToFile(filename=os.path.join(dataset_dir, "indexing_files", "action_list.txt"), line_list=action_list)
 
 
 def createSeperateFurnitureRecLists(dataset_dir):
@@ -37,7 +37,7 @@ def createAllIndexingFiles(dataset_dir):
     createAllRecordingDirList(dataset_dir=dataset_dir, target_file=recording_dir_list_path)
     createSeperateFurnitureRecLists(dataset_dir)
     createTrainTestFiles(dataset_dir=dataset_dir)
-    # copyActionList(dataset_dir=dataset_dir)
+    copyActionList(dataset_dir=dataset_dir)
     createAnnotationJson(dataset_dir=dataset_dir)
 
 
