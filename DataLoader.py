@@ -27,7 +27,6 @@ class HololensStreamRecBase():
         for furniture_dir in self.furniture_dirs:
             assert os.path.exists(furniture_dir)
 
-        self.action_list_filename = os.path.join(dataset_path, 'indexing_files', action_list_filename)
         self.furniture_dir_sizes = [getNumRecordings(_dir_) for _dir_ in self.furniture_dirs]
         self.num_recordings = sum(self.furniture_dir_sizes)
 
@@ -143,9 +142,11 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         else:
             raise ValueError("Invalid set name")
 
-        self.video_set = self.get_video_frame_labels()
+        self.annotated_videos = self.get_video_frame_labels()
         # TODO: enable clip_set
-        # self.clip_set, self.clip_label_count = self.get_clips()
+        self.clip_set, self.clip_label_count = self.get_clips()
+        print(self.clip_set)
+        print([(label, self.clip_label_count[i]) for i, label in enumerate(self.action_list)])
 
     def get_video_frame_labels(self):
         # Extract the label data from the database
@@ -189,32 +190,32 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
                 (video_path, rec_frame_labels, n_frames))  # 0 = duration - irrelevant for initial tests, used for start
         return vid_list
 
-    # def get_clips(self):
-    #     # extract equal length video clip segments from the full video dataset
-    #     clip_dataset = []
-    #     label_count = np.zeros(self.num_classes)
-    #     for i, data in enumerate(self.video_set):
-    #         n_frames = data[2]
-    #         n_clips = int(n_frames / (self.frames_per_clip * self.frame_skip))
-    #         remaining_frames = n_frames % (self.frames_per_clip * self.frame_skip)
-    #         for j in range(0, n_clips):
-    #             for k in range(0, self.frame_skip):
-    #                 start = j * self.frames_per_clip * self.frame_skip + k
-    #                 end = (j + 1) * self.frames_per_clip * self.frame_skip
-    #                 label = data[1][:, start:end:self.frame_skip]
-    #                 label_count = label_count + np.sum(label, axis=1)
-    #                 frame_ind = np.arange(start, end, self.frame_skip).tolist()
-    #                 clip_dataset.append((data[0], label, frame_ind, self.frames_per_clip, i, 0))
-    #         if not remaining_frames == 0:
-    #             frame_pad = self.frames_per_clip - remaining_frames
-    #             start = n_clips * self.frames_per_clip * self.frame_skip + k
-    #             end = start + remaining_frames
-    #             label = data[1][:, start:end:self.frame_skip]
-    #             label_count = label_count + np.sum(label, axis=1)
-    #             label = data[1][:, start - frame_pad:end:self.frame_skip]
-    #             frame_ind = np.arange(start - frame_pad, end, self.frame_skip).tolist()
-    #             clip_dataset.append((data[0], label, frame_ind, self.frames_per_clip, i, frame_pad))
-    #     return clip_dataset, label_count
+    def get_clips(self):
+        # extract equal length video clip segments from the full video dataset
+        clip_dataset = []
+        label_count = np.zeros(self.num_classes)
+        for i, data in enumerate(self.annotated_videos):
+            n_frames = data[2]
+            n_clips = int(n_frames / (self.frames_per_clip * self.frame_skip))
+            # remaining_frames = n_frames % (self.frames_per_clip * self.frame_skip)
+            for j in range(0, n_clips):
+                for k in range(0, self.frame_skip):
+                    start = j * self.frames_per_clip * self.frame_skip + k
+                    end = (j + 1) * self.frames_per_clip * self.frame_skip
+                    label = data[1][:, start:end:self.frame_skip]
+                    label_count = label_count + np.sum(label, axis=1)
+                    frame_ind = np.arange(start, end, self.frame_skip).tolist()
+                    clip_dataset.append((data[0], label, frame_ind, self.frames_per_clip, i, 0))
+            # if not remaining_frames == 0:
+            #     frame_pad = self.frames_per_clip - remaining_frames
+            #     start = n_clips * self.frames_per_clip * self.frame_skip + k
+            #     end = start + remaining_frames
+            #     label = data[1][:, start:end:self.frame_skip]
+            #     label_count = label_count + np.sum(label, axis=1)
+            #     label = data[1][:, start - frame_pad:end:self.frame_skip]
+            #     frame_ind = np.arange(start - frame_pad, end, self.frame_skip).tolist()
+            #     clip_dataset.append((data[0], label, frame_ind, self.frames_per_clip, i, frame_pad))
+        return clip_dataset, label_count
     #
     # def load_rgb_frames(self, video_full_path, frame_ind):
     #     # load video file and extract the frames
@@ -266,19 +267,19 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
     #          Tensor: Converted video.
     #     """
     #     return torch.tensor(pic.transpose([3, 0, 1, 2]), dtype=torch.float32)
-    #
-    # def __len__(self):
-    #     # 'Denotes the total number of samples'
-    #     return len(self.clip_set)
-    #
-    # def __getitem__(self, index):
-    #     # 'Generate one sample of data'
-    #     video_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad = self.clip_set[index]
-    #
-    #     imgs = self.load_rgb_frames(video_full_path, frame_ind)
-    #     imgs = self.transform(imgs)
-    #
-    #     return self.video_to_tensor(imgs), torch.from_numpy(labels), vid_idx, frame_pad
+
+    def __len__(self):
+        # 'Denotes the total number of samples'
+        return len(self.clip_set)
+
+    def __getitem__(self, index):
+        # 'Generate one sample of data'
+        video_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad = self.clip_set[index]
+
+        imgs = self.load_rgb_frames(video_full_path, frame_ind)
+        imgs = self.transform(imgs)
+
+        return self.video_to_tensor(imgs), torch.from_numpy(labels), vid_idx, frame_pad
 if __name__ ==  "__main__":
     dataset_path = r'C:\HoloLens'
     furniture_list = ["Table", "Drawer", "Coffee_Table"]
