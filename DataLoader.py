@@ -259,3 +259,9 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
     #     imgs = self.transform(imgs)
     #
     #     return self.video_to_tensor(imgs), torch.from_numpy(labels), vid_idx, frame_pad
+if __name__ ==  "__main__":
+    dataset_path = r'C:\HoloLens'
+    furniture_list = ["Table", "Drawer", "Coffee_Table"]
+    dataset = HololensStreamRecClipDataset(dataset_path, furniture_list)
+
+
