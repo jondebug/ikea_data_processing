@@ -1,7 +1,11 @@
 # from torch.utils.data import Dataset
 # from pathlib import Path
+import cv2
 import numpy as np
 import os
+
+import torch
+
 from utils import getNumRecordings, getListFromFile, getNumFrames
 import json
 
@@ -145,7 +149,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         self.annotated_videos = self.get_video_frame_labels()
         # TODO: enable clip_set
         self.clip_set, self.clip_label_count = self.get_clips()
-        print(self.clip_set)
+        # print(self.clip_set)
         print([(label, self.clip_label_count[i]) for i, label in enumerate(self.action_list)])
 
     def get_video_frame_labels(self):
@@ -255,7 +259,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
     #     if self.mode == 'vid':
     #         cap.release()
     #     return np.asarray(frames, dtype=np.float32)
-    #
+    # #
     # def video_to_tensor(self, pic):
     #     """Convert a ``numpy.ndarray`` to tensor.
     #     Converts a numpy.ndarray (T x H x W x C)
@@ -275,7 +279,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
     def __getitem__(self, index):
         # 'Generate one sample of data'
         video_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad = self.clip_set[index]
-
+        return  video_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad
         imgs = self.load_rgb_frames(video_full_path, frame_ind)
         imgs = self.transform(imgs)
 
@@ -284,5 +288,11 @@ if __name__ ==  "__main__":
     dataset_path = r'C:\HoloLens'
     furniture_list = ["Table", "Drawer", "Coffee_Table"]
     dataset = HololensStreamRecClipDataset(dataset_path, furniture_list)
+    clip_8 = dataset[8]
+    print("printing clip number 8: ",clip_8)
+    labels = clip_8[1]
+    print(len(labels), len(labels[0]))
+    for frame_num in range(len(labels[0])):
+        print(labels[:frame_num])
 
 
