@@ -75,9 +75,9 @@ def getAllJsonAnnotations(dataset_dir, merged_json=None):
     print(merged_json)
 
     # use this code for one test directory:
-    getAllJsonsInDirList([dataset_dir], merged_json, "testing")
+    # getAllJsonsInDirList([dataset_dir], merged_json, "testing")
     #use this code for real database:
-    '''test_dir_list_file = os.path.join(dataset_dir, "indexing_files", "all_test_dir_list.txt")
+    test_dir_list_file = os.path.join(dataset_dir, "indexing_files", "all_test_dir_list.txt")
     train_dir_list_file = os.path.join(dataset_dir, "indexing_files", "all_train_dir_list.txt")
     assert os.path.exists(test_dir_list_file) and os.path.exists(train_dir_list_file)
     test_dir_list = getListFromFile(test_dir_list_file)
@@ -86,12 +86,11 @@ def getAllJsonAnnotations(dataset_dir, merged_json=None):
     getAllJsonsInDirList(train_dir_list, merged_json, "training")
     print(merged_json)
 
-
-    with open(os.path.join(dataset_dir, "new_json.json"), "w") as new_json_file_obj:
+    with open(os.path.join(dataset_dir, "indexing_files", "new_json.json"), "w") as new_json_file_obj:
         print(merged_json)
         merged_json = json.dumps(merged_json)
         new_json_file_obj.write(merged_json)
-'''
+
 
 def writeListToFile(filename, line_list):
     with open(filename, "w") as f:
