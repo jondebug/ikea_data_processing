@@ -14,40 +14,82 @@ import json
 from hand_defs import HandJointIndex
 
 
-def searchForJson(dir):
+def searchForJson(_dir_):
 
-    for sub_dir in os.listdir(dir):
+    for sub_dir in os.listdir(_dir_):
         print("lets look at {}".format(sub_dir))
         if ".json" in sub_dir[-5:]:
             print("found {}".format(sub_dir))
-            return os.path.join(dir,sub_dir)
+            return os.path.join(_dir_, sub_dir)
 
     return None
+
+def applyMappingToAnnotations(action_annotation_list, id_to_name):
+    action_labels = []
+    for encoded_annotation in action_annotation_list:
+        segment = [encoded_annotation["start"], encoded_annotation["end"]]
+        label = id_to_name[encoded_annotation["action"]]
+        decoded_label ={"segment":segment, "label":label}
+        action_labels.append(decoded_label)
+    return action_labels
+
+
+def getIdToNameMapping(action_label_data: list):
+    id_to_name = {}
+    for single_id_map in action_label_data:
+        _id_ = single_id_map["map"]
+        name = single_id_map["name"]
+        id_to_name[_id_] = name
+    print(id_to_name)
+    return id_to_name
+
+
+def decodeJsonAnnotations(current_json):
+    id_to_name = getIdToNameMapping(current_json["actionLabelData"])
+    action_labels = applyMappingToAnnotations(current_json["actionAnnotationList"], id_to_name)
+    print(action_labels)
+    return action_labels
+
+def getAllJsonsInDirList(dir_list, merged_json, subset):
+    assert subset == "training" or subset == "testing"
+    for _dir_ in dir_list:
+        json_file = searchForJson(_dir_)
+        if json_file:
+            print("found json file {}".format(json_file))
+            with open(json_file) as json_file_obj:
+                current_json = json.load(json_file_obj)
+                #add error check if json file already exists in database
+                merged_json["database"][json_file] = {"subset":subset,"annotation":decodeJsonAnnotations(current_json["annotation"])}
+        else:
+            print(f"path {_dir_} does not have json yet")
+
+
 
 
 def getAllJsonAnnotations(dataset_dir, merged_json=None):
 
     if merged_json is None or merged_json == {}:
-        merged_json = {}
+        merged_json = {"version": "2.0.0", "database": {}}
     print(merged_json)
-    if "_recDir" in dataset_dir[-8:]:
-        json_file = searchForJson(dataset_dir)
-        if json_file:
-            print("found json file {}".format(json_file))
-            with open(json_file) as json_file_obj, open(os.path.join(dataset_dir, "new_json.json"), "w") as new_json_file_obj:
-                current_json = json.load(json_file_obj)
-                copy_json = current_json
-                copy_json['version'] = '3'
-                merged_json[json_file] = current_json
-                merged_json[json_file + "_copied"] = copy_json
-                print(merged_json)
-                merged_json = json.dumps(merged_json)
-                new_json_file_obj.write(merged_json)
-    for sub_dir in glob(rf"{dataset_dir}\*\\"):
-        print(
-            f"calling aux_createAllRecordingDirList for path: {sub_dir}, continuing search for recording dir")
-        getAllJsonAnnotations(sub_dir, merged_json)
 
+    # use this code for one test directory:
+    getAllJsonsInDirList([dataset_dir], merged_json, "testing")
+    #use this code for real database:
+    '''test_dir_list_file = os.path.join(dataset_dir, "indexing_files", "all_test_dir_list.txt")
+    train_dir_list_file = os.path.join(dataset_dir, "indexing_files", "all_train_dir_list.txt")
+    assert os.path.exists(test_dir_list_file) and os.path.exists(train_dir_list_file)
+    test_dir_list = getListFromFile(test_dir_list_file)
+    train_dir_list = getListFromFile(train_dir_list_file)
+    getAllJsonsInDirList(test_dir_list, merged_json, "testing")
+    getAllJsonsInDirList(train_dir_list, merged_json, "training")
+    print(merged_json)
+
+
+    with open(os.path.join(dataset_dir, "new_json.json"), "w") as new_json_file_obj:
+        print(merged_json)
+        merged_json = json.dumps(merged_json)
+        new_json_file_obj.write(merged_json)
+'''
 
 def writeListToFile(filename, line_list):
     with open(filename, "w") as f:
