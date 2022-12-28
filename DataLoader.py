@@ -127,7 +127,7 @@ class HololensStreamRecBase():
 class HololensStreamRecClipDataset(HololensStreamRecBase):
     def __init__(self, dataset_path, furniture_list: list, action_list_filename='action_list.txt',
                  train_filename='all_train_dir_list.txt', test_filename='all_train_dir_list.txt', transform=None,
-                 gt_annotation_filename='db_gt_annotations.json', modalities="all", frame_skip=1, frames_per_clip=32,
+                 gt_annotation_filename='db_gt_annotations.json', modalities=["all"], frame_skip=1, frames_per_clip=32,
                  dataset="train", rgb_label_watermark=False):
 
         super().__init__(dataset_path, furniture_list, action_list_filename,
@@ -220,25 +220,11 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
                     start = j * self.frames_per_clip * self.frame_skip + k
                     end = (j + 1) * self.frames_per_clip * self.frame_skip
                     label = data[1][:, start:end:self.frame_skip]
-                    # np_labels = np.array(label).T
-                    # print("np_labels shape is: ", np_labels.T.shape)
-                    # all_argmax = np.argmax(np_labels, 0)
-                    # print(all_argmax, all_argmax.shape)
-                    # for i in range(np_labels.shape[0]):
-                    # print(f"frame {i}: in clip {j}: {np.argmax(np_labels[i])}. number of labels: {np.sum(np_labels[i])} ")
-                    # print(f"clip {j} got label {np_labels}")
+
                     label_count = label_count + np.sum(label, axis=1)
                     frame_ind = np.arange(start, end, self.frame_skip).tolist()
                     clip_dataset.append((data[0], label, frame_ind, self.frames_per_clip, i, 0))
-            # if not remaining_frames == 0:
-            #     frame_pad = self.frames_per_clip - remaining_frames
-            #     start = n_clips * self.frames_per_clip * self.frame_skip + k
-            #     end = start + remaining_frames
-            #     label = data[1][:, start:end:self.frame_skip]
-            #     label_count = label_count + np.sum(label, axis=1)
-            #     label = data[1][:, start - frame_pad:end:self.frame_skip]
-            #     frame_ind = np.arange(start - frame_pad, end, self.frame_skip).tolist()
-            #     clip_dataset.append((data[0], label, frame_ind, self.frames_per_clip, i, frame_pad))
+
         return clip_dataset, label_count
 
     def getLabelsInClipIdx(self, np_labels):
@@ -289,15 +275,18 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         recording_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad = self.clip_set[index]
         # return video_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad
         print(f"getting clip from recording {recording_full_path}")
-        if self.modalities == "all":
+        if self.modalities == ["all"]:
             print("returning all modalities")
             rgb_clip = self.load_rgb_frames(recording_full_path, frame_ind, labels)
+
             return rgb_clip
 
         for mod in self.modalities:
             if mod == "pv":
                 rgb_clip = self.load_rgb_frames(recording_full_path, frame_ind)
-
+            # if mod == "eye_data":
+            #
+            # if mod = "depth":
         # imgs = self.transform(imgs)
 
         # return self.video_to_tensor(rgb_clip), torch.from_numpy(labels), vid_idx, frame_pad
