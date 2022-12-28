@@ -183,6 +183,14 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
                 if action == 'spin screw': action = 'spin screwdriver'
                 if action == 'pick up back panel ': action = 'pick up back panel'
                 if action == 'application interface ': action = 'application interface'
+                if action == 'pick up side panel' : action = 'pick drawer up side panel'
+                if action == 'pick up drawer side panel' : action = 'pick up side panel'
+                if action == 'pick up screw holder (the strange white thing)' : action = 'pick up cam lock'
+                if action == 'insert screw holder (the strange white thing)' : action = 'insert cam lock'
+                if action == 'lay down screwdriver ' : action = 'lay down screwdriver'
+                if action == 'pick up drawer bottom panel ' : action = 'pick up bottom panel'
+                if action == 'allign drawer bottom panel '  or action == 'allign drawer back panel': action = 'N/A' #TODO: fix this!!!
+                if action == 'spin drawer knob screw' : action = 'spin drawer knob'
 
                 action_id = self.action_name_to_id_mapping[action]
                 # object_id = ann_row["object_id"]
@@ -297,8 +305,8 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
 
 if __name__ == "__main__":
     dataset_path = r'C:\HoloLens'
-    furniture_list = ["Table", "Drawer", "Coffee_Table"]
-    dataset = HololensStreamRecClipDataset(dataset_path, furniture_list,frames_per_clip=256, rgb_label_watermark=True)
+    furniture_list = ["Coffee_Table"]
+    dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=256, rgb_label_watermark=True)
     clip_num = 0
     clip_frames = dataset[clip_num]
     print("printing clip number 8 with size: ", clip_frames[0].shape)

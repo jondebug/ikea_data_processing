@@ -45,20 +45,30 @@ def getNumFrames(_dir_):
     assert os.path.exists(pv_dir)
     return len(os.listdir(pv_dir))
 
-def searchForJson(_dir_):
+def searchForAnnotationJson(_dir_):
     for sub_dir in os.listdir(_dir_):
         # print("lets look at {}".format(sub_dir))
-        if ".json" in sub_dir[-5:]:
+        if "annotations.json" in sub_dir[-16:]:
             # print("found {}".format(sub_dir))
             return os.path.join(_dir_, sub_dir)
 
     return None
+def translateSecToFrame(start_sec, end_sec,  fps_error_correction_mapping):
+    print(fps_error_correction_mapping)
+    return [fps_error_correction_mapping[str(int(np.round(15 * start_sec)))], fps_error_correction_mapping[str(int(np.round(15 * end_sec)))]]
 
-
-def applyMappingToAnnotations(action_annotation_list, id_to_name):
+def applyMappingToAnnotations(action_annotation_list, id_to_name, fps_error_correction_mapping):
     action_labels = []
+    if fps_error_correction_mapping:
+        print("starting to decode using json!!")
     for encoded_annotation in action_annotation_list:
-        segment = [int(np.round(15 * encoded_annotation["start"])), int(np.round(15 * encoded_annotation["end"]))]
+        if fps_error_correction_mapping:
+            segment = translateSecToFrame(encoded_annotation["start"], encoded_annotation["end"], fps_error_correction_mapping)
+            # print()
+            # segment = [int(fps_error_correction_mapping[encoded_annotation["start"]]), int(fps_error_correction_mapping[encoded_annotation["end"]])]
+            # print (segment)
+        else:
+            segment = [int(np.round(15 * encoded_annotation["start"])), int(np.round(15 * encoded_annotation["end"]))]
         label = id_to_name[encoded_annotation["action"]]
         decoded_label = {"segment": segment, "label": label}
         action_labels.append(decoded_label)
@@ -86,10 +96,11 @@ def saveVideoClip(clip_name, clip_frames):
         transposed_frame = np.transpose(frame, (1, 2, 0))
         video.write(cv2.cvtColor(np.array(transposed_frame), cv2.COLOR_RGB2BGR))
 
-def decodeJsonAnnotations(current_json_annotation: dict):
+def decodeJsonAnnotations(current_json_annotation: dict, fps_error_correction_mapping):
     print(f"current_json_annotation: {current_json_annotation.keys()}")
     id_to_name = getIdToNameMapping(current_json_annotation["config"]["actionLabelData"])
-    action_labels = applyMappingToAnnotations(current_json_annotation["annotation"]["actionAnnotationList"], id_to_name)
+    action_labels = applyMappingToAnnotations(current_json_annotation["annotation"]["actionAnnotationList"], id_to_name,
+                                              fps_error_correction_mapping=fps_error_correction_mapping)
     removeBackslashT(action_labels)
     print(action_labels)
     return action_labels
@@ -98,14 +109,22 @@ def decodeJsonAnnotations(current_json_annotation: dict):
 def getAllJsonsInDirList(dir_list, merged_json, subset):
     assert subset == "training" or subset == "testing"
     for _dir_ in dir_list:
-        json_file = searchForJson(_dir_)
+        json_file = searchForAnnotationJson(_dir_)
         if json_file:
             print("found json file {}".format(json_file))
             with open(json_file) as json_file_obj:
                 current_json = json.load(json_file_obj)
                 # add error check if json file already exists in database
+                fps_error_correction_mapping = None
+                fps_error_correction_json_path = os.path.join(_dir_, "frame_rate_translation.json")
+                if os.path.exists(fps_error_correction_json_path):
+                    with open(fps_error_correction_json_path) as fps_error_correction_obj:
+                        fps_error_correction_mapping = json.load(fps_error_correction_obj)
+
+                print(f"@@@@  directory {_dir_} has a translation json @@@@")
                 merged_json["database"][_dir_] = {"subset": subset,
-                                                      "annotation": decodeJsonAnnotations(current_json)}
+                                                      "annotation": decodeJsonAnnotations(current_json,
+                                                                                          fps_error_correction_mapping)}
         else:
             print(f"path {_dir_} does not have json yet")
 
