@@ -1,12 +1,14 @@
 # from torch.utils.data import Dataset
 # from pathlib import Path
+import pathlib
+
 import cv2
 import numpy as np
 import os
-
+import torchvision
 import torch
-
-from utils import getNumRecordings, getListFromFile, getNumFrames
+import matplotlib.pyplot as plt
+from utils import getNumRecordings, getListFromFile, getNumFrames, saveVideoClip, addTextToImg
 import json
 
 
@@ -54,6 +56,7 @@ class HololensStreamRecBase():
         self.action_id_mapping = {}
         for action, action_id in enumerate(self.action_list): self.action_id_mapping[action_id] = action
         print(self.action_id_mapping)
+
     def __enter__(self):
         return self
 
@@ -87,11 +90,10 @@ class HololensStreamRecBase():
             row = {"nframes": getNumFrames(_dir_), 'video_path': _dir_}
 
             # if dataset != all:
-                # print(dataset, db_gt_annotations["database"][_dir_]["subset"])
-                # assert dataset in db_gt_annotations["database"][_dir_]["subset"]
+            # print(dataset, db_gt_annotations["database"][_dir_]["subset"])
+            # assert dataset in db_gt_annotations["database"][_dir_]["subset"]
             video_data_table.append(row)
         return video_data_table
-
 
     def get_video_annotations_table(self, video_path):
         with open(self.gt_annotation_filename) as json_file_obj:
@@ -103,7 +105,6 @@ class HololensStreamRecBase():
             return db_gt_annotations["database"][video_path]["annotation"]
         else:
             return None
-
 
     def get_video_table(self, video_idx):
         """
@@ -124,7 +125,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
     def __init__(self, dataset_path, furniture_list: list, action_list_filename='action_list.txt',
                  train_filename='all_train_dir_list.txt', test_filename='all_train_dir_list.txt', transform=None,
                  gt_annotation_filename='db_gt_annotations.json', modalities="all", frame_skip=1, frames_per_clip=32,
-                 dataset="train"):
+                 dataset="train", rgb_label_watermark=False):
 
         super().__init__(dataset_path, furniture_list, action_list_filename,
                          train_filename, test_filename, transform, gt_annotation_filename)
@@ -132,7 +133,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         # self.camera = camera
         # self.resize = resize
         # self.input_type = input_type
-
+        self.rgb_label_watermark = rgb_label_watermark
         self.modalities = modalities
         self.transform = transform
         self.set = dataset
@@ -175,7 +176,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
 
                 if action == 'pick up small coffee table screw': action = 'pick up small screw'
                 if action == 'allign small coffee table screw': action = 'allign small screw'
-                if action =='vr interface interaction' : action = 'application interface'
+                if action == 'vr interface interaction': action = 'application interface'
                 if action == 'spin screw': action = 'spin screwdriver'
                 if action == 'pick up back panel ': action = 'pick up back panel'
                 if action == 'application interface ': action = 'application interface'
@@ -198,7 +199,8 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         # extract equal length video clip segments from the full video dataset
         clip_dataset = []
         label_count = np.zeros(self.num_classes)
-        for i, data in enumerate(self.annotated_videos):
+        # for i, data in enumerate(self.annotated_videos):
+        for i, data in enumerate(self.annotated_videos[:1]):
             n_frames = data[2]
             n_clips = int(n_frames / (self.frames_per_clip * self.frame_skip))
             # remaining_frames = n_frames % (self.frames_per_clip * self.frame_skip)
@@ -207,6 +209,13 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
                     start = j * self.frames_per_clip * self.frame_skip + k
                     end = (j + 1) * self.frames_per_clip * self.frame_skip
                     label = data[1][:, start:end:self.frame_skip]
+                    # np_labels = np.array(label).T
+                    # print("np_labels shape is: ", np_labels.T.shape)
+                    # all_argmax = np.argmax(np_labels, 0)
+                    # print(all_argmax, all_argmax.shape)
+                    # for i in range(np_labels.shape[0]):
+                    # print(f"frame {i}: in clip {j}: {np.argmax(np_labels[i])}. number of labels: {np.sum(np_labels[i])} ")
+                    # print(f"clip {j} got label {np_labels}")
                     label_count = label_count + np.sum(label, axis=1)
                     frame_ind = np.arange(start, end, self.frame_skip).tolist()
                     clip_dataset.append((data[0], label, frame_ind, self.frames_per_clip, i, 0))
@@ -220,46 +229,22 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
             #     frame_ind = np.arange(start - frame_pad, end, self.frame_skip).tolist()
             #     clip_dataset.append((data[0], label, frame_ind, self.frames_per_clip, i, frame_pad))
         return clip_dataset, label_count
+
+    def load_rgb_frames(self, rec_dir, frame_inices):
+        # load video file and extract the frames
+        frames = []
+        print(frame_inices)
+        for frame_num in frame_inices:
+            rgb_frame_full_path = os.path.join(rec_dir, "norm", "pv", "{}.png".format(frame_num))
+            assert os.path.exists(rgb_frame_full_path)
+            if self.rgb_label_watermark:
+                frame = addTextToImg(rgb_frame_full_path, "label")
+            else:
+                frame = torchvision.io.read_image(rgb_frame_full_path)
+            frames.append(frame)
+        return frames
+
     #
-    # def load_rgb_frames(self, video_full_path, frame_ind):
-    #     # load video file and extract the frames
-    #     frames = []
-    #     # Open the video file
-    #     if self.mode == 'vid':
-    #         cap = cv2.VideoCapture(video_full_path)
-    #     for i in frame_ind:
-    #         if self.mode == 'vid':  # load from video file
-    #             cap.set(1, i)
-    #             ret, img = cap.read()
-    #         else:  # load from image folder
-    #             if self.input_type == 'rgb':
-    #                 img_filename = os.path.join(video_full_path, str(i).zfill(6) + '.jpg')
-    #             else:
-    #                 img_filename = os.path.join(video_full_path, str(i).zfill(6) + '.png')
-    #             img = cv2.imread(img_filename)
-    #             # img = cv2.imread(img_filename, cv2.IMREAD_ANYDEPTH).astype(np.float32)
-    #         try:
-    #             # if self.input_type == 'rgb':
-    #             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    #             # else:
-    #             #     img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-    #         except:
-    #             # debugging
-    #             raise ValueError("error occured while loading frame {} from video {}".format(i, video_full_path))
-    #
-    #         if self.resize is not None:
-    #             w, h, c = img.shape
-    #             if w < self.resize or h < self.resize:
-    #                 d = self.resize - min(w, h)
-    #                 sc = 1 + d / min(w, h)
-    #                 img = cv2.resize(img, dsize=(0, 0), fx=sc, fy=sc)
-    #             img = cv2.resize(img, dsize=(self.resize, self.resize))  # resizing the images
-    #             img = (img / 255.) * 2 - 1
-    #         frames.append(img)
-    #     if self.mode == 'vid':
-    #         cap.release()
-    #     return np.asarray(frames, dtype=np.float32)
-    # #
     # def video_to_tensor(self, pic):
     #     """Convert a ``numpy.ndarray`` to tensor.
     #     Converts a numpy.ndarray (T x H x W x C)
@@ -278,21 +263,41 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
 
     def __getitem__(self, index):
         # 'Generate one sample of data'
-        video_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad = self.clip_set[index]
-        return  video_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad
-        imgs = self.load_rgb_frames(video_full_path, frame_ind)
-        imgs = self.transform(imgs)
+        recording_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad = self.clip_set[index]
+        # return video_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad
+        if self.modalities == "all":
+            print("returning all modalities")
+            rgb_clip = self.load_rgb_frames(recording_full_path, frame_ind)
+            return rgb_clip
 
-        return self.video_to_tensor(imgs), torch.from_numpy(labels), vid_idx, frame_pad
-if __name__ ==  "__main__":
+        for mod in self.modalities:
+            if mod == "pv":
+                rgb_clip = self.load_rgb_frames(recording_full_path, frame_ind)
+
+        # imgs = self.transform(imgs)
+
+        # return self.video_to_tensor(rgb_clip), torch.from_numpy(labels), vid_idx, frame_pad
+
+
+if __name__ == "__main__":
     dataset_path = r'C:\HoloLens'
     furniture_list = ["Table", "Drawer", "Coffee_Table"]
-    dataset = HololensStreamRecClipDataset(dataset_path, furniture_list)
-    clip_8 = dataset[8]
-    print("printing clip number 8: ",clip_8)
-    labels = clip_8[1]
-    print(len(labels), len(labels[0]))
-    for frame_num in range(len(labels[0])):
-        print(labels[:frame_num])
+    dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, rgb_label_watermark=True)
+    clip_num = 25
+    clip_frames = dataset[clip_num]
+    print("printing clip number 8 with size: ", clip_frames[0].shape)
+    # print(printable_img_data)
+    vid_clip_name = r"D:\loaded_clips\clip_{}.avi".format(clip_num)
+    saveVideoClip(vid_clip_name, clip_frames)
+    c = plt.imshow( np.transpose(clip_frames[0], (1, 2, 0)))
+
+    plt.show()
 
 
+    # labels = clip_8[1]
+    # print(len(labels), len(labels))
+    # np_labels = np.array(labels).T
+    # for i in range(np_labels.shape[0]):
+    #     print(f"frame {i}:  {np.argmax(np_labels[i])}. number of labels:{np.sum(np_labels[i])}")
+    # for frame_num in range(len(labels[0])):
+    # print(labels[:frame_num])

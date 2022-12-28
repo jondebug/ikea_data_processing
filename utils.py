@@ -10,8 +10,34 @@ import numpy as np
 # import cv2
 import random
 import json
+from PIL import Image, ImageDraw, ImageFont
+
+import torchvision.transforms as transforms
 
 from hand_defs import HandJointIndex
+
+
+def addTextToImg(img_path, txt="null"):
+    # Call draw Method to add 2D graphics in an image
+    image = Image.open(img_path)
+    I1 = ImageDraw.Draw(image)
+    # font = ImageFont.load_default()
+    # Add Text to an image
+    font = ImageFont.truetype(font="arial.ttf", size = 42)
+
+    I1.text((28, 36), txt, fill=(255, 0, 0), font=font)
+
+    # Define a transform to convert PIL
+    # image to a Torch tensor
+    transform = transforms.Compose([
+        transforms.PILToTensor()
+    ])
+
+    # transform = transforms.PILToTensor()
+    # Convert the PIL image to Torch tensor
+    img_tensor = transform(image)
+    # Display edited image
+    return img_tensor
 
 
 def getNumFrames(_dir_):
@@ -54,6 +80,11 @@ def getIdToNameMapping(action_label_data: list):
     print(id_to_name)
     return id_to_name
 
+def saveVideoClip(clip_name, clip_frames):
+    video = cv2.VideoWriter(clip_name, 0, 1, (960, 540))
+    for frame in clip_frames:
+        transposed_frame = np.transpose(frame, (1, 2, 0))
+        video.write(cv2.cvtColor(np.array(transposed_frame), cv2.COLOR_RGB2BGR))
 
 def decodeJsonAnnotations(current_json_annotation: dict):
     print(f"current_json_annotation: {current_json_annotation.keys()}")
