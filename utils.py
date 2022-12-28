@@ -53,9 +53,20 @@ def searchForAnnotationJson(_dir_):
             return os.path.join(_dir_, sub_dir)
 
     return None
+
+
 def translateSecToFrame(start_sec, end_sec,  fps_error_correction_mapping):
-    print(fps_error_correction_mapping)
-    return [fps_error_correction_mapping[str(int(np.round(15 * start_sec)))], fps_error_correction_mapping[str(int(np.round(15 * end_sec)))]]
+    last_frame_vid = list(fps_error_correction_mapping.keys())[-1]
+    if end_sec > float(last_frame_vid)/15:
+        end_sec = float(last_frame_vid)/15
+    if  start_sec > float(last_frame_vid)/15:
+        print(start_sec, end_sec, float(last_frame_vid) / 15)
+        return
+    seg_start = fps_error_correction_mapping[str(int(np.round(15 * start_sec)))]
+    seg_end = fps_error_correction_mapping[str(int(np.round(15 * end_sec)))]
+
+    return [seg_start,seg_end ]
+
 
 def applyMappingToAnnotations(action_annotation_list, id_to_name, fps_error_correction_mapping):
     action_labels = []
@@ -63,7 +74,11 @@ def applyMappingToAnnotations(action_annotation_list, id_to_name, fps_error_corr
         print("starting to decode using json!!")
     for encoded_annotation in action_annotation_list:
         if fps_error_correction_mapping:
+
             segment = translateSecToFrame(encoded_annotation["start"], encoded_annotation["end"], fps_error_correction_mapping)
+            if not segment:
+                print("=============", encoded_annotation["start"], encoded_annotation["end"], "=============")
+                continue
             # print()
             # segment = [int(fps_error_correction_mapping[encoded_annotation["start"]]), int(fps_error_correction_mapping[encoded_annotation["end"]])]
             # print (segment)

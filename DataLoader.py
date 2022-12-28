@@ -151,7 +151,6 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
             raise ValueError("Invalid set name")
 
         self.annotated_videos = self.get_video_frame_labels()
-        # TODO: enable clip_set
         self.clip_set, self.clip_label_count = self.get_clips()
         # print(self.clip_set)
         print([(label, self.clip_label_count[i]) for i, label in enumerate(self.action_list)])
@@ -191,6 +190,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
                 if action == 'pick up drawer bottom panel ' : action = 'pick up bottom panel'
                 if action == 'allign drawer bottom panel '  or action == 'allign drawer back panel': action = 'N/A' #TODO: fix this!!!
                 if action == 'spin drawer knob screw' : action = 'spin drawer knob'
+                if action ==  'pick drawer up side panel' : action =  'pick up side panel'
 
                 action_id = self.action_name_to_id_mapping[action]
                 # object_id = ann_row["object_id"]
@@ -211,7 +211,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         clip_dataset = []
         label_count = np.zeros(self.num_classes)
         # for i, data in enumerate(self.annotated_videos):
-        for i, data in enumerate(self.annotated_videos[:1]):
+        for i, data in enumerate(self.annotated_videos[:10]):
             n_frames = data[2]
             n_clips = int(n_frames / (self.frames_per_clip * self.frame_skip))
             # remaining_frames = n_frames % (self.frames_per_clip * self.frame_skip)
@@ -307,7 +307,7 @@ if __name__ == "__main__":
     dataset_path = r'C:\HoloLens'
     furniture_list = ["Coffee_Table"]
     dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=256, rgb_label_watermark=True)
-    clip_num = 0
+    clip_num = 14
     clip_frames = dataset[clip_num]
     print("printing clip number 8 with size: ", clip_frames[0].shape)
     # print(printable_img_data)
