@@ -81,7 +81,7 @@ def getIdToNameMapping(action_label_data: list):
     return id_to_name
 
 def saveVideoClip(clip_name, clip_frames):
-    video = cv2.VideoWriter(clip_name, 0, 1, (960, 540))
+    video = cv2.VideoWriter(clip_name, 0, 15, (960, 540))
     for frame in clip_frames:
         transposed_frame = np.transpose(frame, (1, 2, 0))
         video.write(cv2.cvtColor(np.array(transposed_frame), cv2.COLOR_RGB2BGR))

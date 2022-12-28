@@ -53,9 +53,12 @@ class HololensStreamRecBase():
         self.train_video_list = getListFromFile(self.train_filename)
         self.test_video_list = getListFromFile(self.test_filename)
         self.all_video_list = self.test_video_list + self.train_video_list
-        self.action_id_mapping = {}
-        for action, action_id in enumerate(self.action_list): self.action_id_mapping[action_id] = action
-        print(self.action_id_mapping)
+        self.action_name_to_id_mapping = {}
+        self.id_to_action_name_mapping = {}
+        for action_id, action in enumerate(self.action_list):
+            self.action_name_to_id_mapping[action] = action_id
+            self.id_to_action_name_mapping[action_id] = action
+        print(self.action_name_to_id_mapping)
 
     def __enter__(self):
         return self
@@ -181,7 +184,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
                 if action == 'pick up back panel ': action = 'pick up back panel'
                 if action == 'application interface ': action = 'application interface'
 
-                action_id = self.action_id_mapping[action]
+                action_id = self.action_name_to_id_mapping[action]
                 # object_id = ann_row["object_id"]
                 # action_id = self.get_action_id(atomic_action_id, object_id)
                 start_frame = ann_row['segment'][0]
@@ -230,15 +233,27 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
             #     clip_dataset.append((data[0], label, frame_ind, self.frames_per_clip, i, frame_pad))
         return clip_dataset, label_count
 
-    def load_rgb_frames(self, rec_dir, frame_inices):
+    def getLabelsInClipIdx(self, np_labels):
+        print(np_labels.size)
+        action_strings = [self.id_to_action_name_mapping[np.argmax(np_labels[i])] for i in range(len(np_labels))]
+        print(action_strings)
+        return action_strings
+
+    def load_rgb_frames(self, rec_dir, frame_indices, labels):
         # load video file and extract the frames
+        np_labels = np.array(labels).T
+        print(np_labels.shape)
         frames = []
-        print(frame_inices)
-        for frame_num in frame_inices:
+        print(frame_indices)
+        # TODO: only get labels when watermark is necessary
+        str_labels = self.getLabelsInClipIdx(np_labels)
+
+        for frame_num in frame_indices:
             rgb_frame_full_path = os.path.join(rec_dir, "norm", "pv", "{}.png".format(frame_num))
             assert os.path.exists(rgb_frame_full_path)
             if self.rgb_label_watermark:
-                frame = addTextToImg(rgb_frame_full_path, "label")
+                frame = addTextToImg(rgb_frame_full_path, str_labels[frame_num - frame_indices[0]] + f", {frame_num}")
+
             else:
                 frame = torchvision.io.read_image(rgb_frame_full_path)
             frames.append(frame)
@@ -265,9 +280,10 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         # 'Generate one sample of data'
         recording_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad = self.clip_set[index]
         # return video_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad
+        print(f"getting clip from recording {recording_full_path}")
         if self.modalities == "all":
             print("returning all modalities")
-            rgb_clip = self.load_rgb_frames(recording_full_path, frame_ind)
+            rgb_clip = self.load_rgb_frames(recording_full_path, frame_ind, labels)
             return rgb_clip
 
         for mod in self.modalities:
@@ -282,8 +298,8 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
 if __name__ == "__main__":
     dataset_path = r'C:\HoloLens'
     furniture_list = ["Table", "Drawer", "Coffee_Table"]
-    dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, rgb_label_watermark=True)
-    clip_num = 25
+    dataset = HololensStreamRecClipDataset(dataset_path, furniture_list,frames_per_clip=256, rgb_label_watermark=True)
+    clip_num = 0
     clip_frames = dataset[clip_num]
     print("printing clip number 8 with size: ", clip_frames[0].shape)
     # print(printable_img_data)
