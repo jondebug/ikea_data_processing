@@ -13,7 +13,7 @@ import json
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
-
+import plyfile
 class HololensStreamRecBase():
     """Face Landmarks dataset."""
 
@@ -248,7 +248,24 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         print(action_strings)
         return action_strings
 
-    def load_rgb_frames(self, rec_dir, frame_indices, labels):
+
+    def load_point_clouds(self, rec_dir, frame_indices):
+        point_clouds = []
+        for index in frame_indices:
+            point_cloud_full_path = os.path.join(rec_dir, "norm", "Depth Long Throw", "{}.ply".format(index))
+
+            ply_data = plyfile.PlyData.read(point_cloud_full_path)
+            print("ply_data: ", ply_data)
+            # (x, y, z) = (vertex[t].tolist() for t in ('x', 'y', 'z'))
+            points = ply_data['vertex'].data
+            points = [list(point) for point in points]
+            # print("points:, ",points)
+            points = torch.Tensor(points)
+            point_clouds.append(points)
+        return point_clouds
+
+
+    def load_rgb_frames(self, rec_dir, frame_indices, labels=[]):
         # load video file and extract the frames
         np_labels = np.array(labels).T
         print(np_labels.shape)
@@ -256,7 +273,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         print(frame_indices)
         # TODO: only get labels when watermark is necessary
         str_labels = self.getLabelsInClipIdx(np_labels)
-
+        assert (self.rgb_label_watermark and labels != []) or not self.rgb_label_watermark
         for frame_num in frame_indices:
             rgb_frame_full_path = os.path.join(rec_dir, "norm", "pv", "{}.png".format(frame_num))
             assert os.path.exists(rgb_frame_full_path)
@@ -290,29 +307,35 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         recording_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad = self.clip_set[index]
         # return video_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad
         print(f"getting clip from recording {recording_full_path}")
+        clip_modalities_dict = {}
         if self.modalities == ["all"]:
             print("returning all modalities")
-            rgb_clip = self.load_rgb_frames(recording_full_path, frame_ind, labels)
+            #TODO: remove labels argument from load_rgb_frames
+            clip_modalities_dict["rgb_frames"] = self.load_rgb_frames(recording_full_path, frame_ind, labels)
+            clip_modalities_dict["point_clouds"] = self.load_point_clouds(recording_full_path, frame_ind)
 
-            return rgb_clip
+            return clip_modalities_dict
 
         for mod in self.modalities:
             if mod == "pv":
-                rgb_clip = self.load_rgb_frames(recording_full_path, frame_ind)
+                clip_modalities_dict["rgb_frames"] = self.load_rgb_frames(recording_full_path, frame_ind)
+            if mod == "point_clouds":
+                clip_modalities_dict["point_clouds"] = self.load_point_clouds(recording_full_path, frame_ind)
             # if mod == "eye_data":
             #
             # if mod = "depth":
         # imgs = self.transform(imgs)
+        return clip_modalities_dict
 
         # return self.video_to_tensor(rgb_clip), torch.from_numpy(labels), vid_idx, frame_pad
-
 
 if __name__ == "__main__":
     dataset_path = r'C:\HoloLens'
     furniture_list = ["Coffee_Table"]
     dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=64, rgb_label_watermark=True)
     clip_num = 31
-    clip_frames = dataset[clip_num]
+    clip_data_dict = dataset[clip_num]
+    clip_frames = clip_data_dict["rgb_frames"]
     print("printing clip number 8 with size: ", clip_frames[0].shape)
 
     # print(printable_img_data)
