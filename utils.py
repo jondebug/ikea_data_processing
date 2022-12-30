@@ -16,6 +16,26 @@ import torchvision.transforms as transforms
 
 from hand_defs import HandJointIndex
 
+def read16BitPGM(pgm_dir):
+    """Return a raster of integers from a PGM as a list of lists."""
+    with open(pgm_dir, 'rb') as pgmf:
+        header = pgmf.readline()
+        assert header[:2] == b'P5'
+        size = pgmf.readline()
+        (width, height) = [int(i) for i in size.split()]
+        depth = int(pgmf.readline())
+
+        assert depth <= 65535
+
+        raster = []
+        for y in range(height):
+           row = []
+           for y in range(width):
+               low_bits = ord(pgmf.read(1))
+               row.append(low_bits+255*ord(pgmf.read(1)))
+           raster.append(row)
+        return raster
+
 
 def addTextToImg(img_path, txt="null"):
     # Call draw Method to add 2D graphics in an image

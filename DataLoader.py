@@ -8,7 +8,7 @@ import os
 import torchvision
 import torch
 import matplotlib.pyplot as plt
-from utils import getNumRecordings, getListFromFile, getNumFrames, saveVideoClip, addTextToImg
+from utils import getNumRecordings, getListFromFile, getNumFrames, saveVideoClip, addTextToImg, read16BitPGM
 import json
 import plotly.express as px
 import plotly.graph_objects as go
@@ -255,16 +255,20 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
             point_cloud_full_path = os.path.join(rec_dir, "norm", "Depth Long Throw", "{}.ply".format(index))
 
             ply_data = plyfile.PlyData.read(point_cloud_full_path)
-            print("ply_data: ", ply_data)
-            # (x, y, z) = (vertex[t].tolist() for t in ('x', 'y', 'z'))
             points = ply_data['vertex'].data
             points = [list(point) for point in points]
-            # print("points:, ",points)
             points = torch.Tensor(points)
             point_clouds.append(points)
         return point_clouds
 
-
+    def depth_frames(self, rec_dir, frame_indices):
+        depth_frames = []
+        for index in frame_indices:
+            depth_frame_full_path= os.path.join(rec_dir, "norm", "Depth Long Throw", "{}.pgm".format(index))
+            pgm_data = read16BitPGM(depth_frame_full_path)
+            depth_frames.append(pgm_data)
+        print(depth_frames)
+        return torch.Tensor(depth_frames)
     def load_rgb_frames(self, rec_dir, frame_indices, labels=[]):
         # load video file and extract the frames
         np_labels = np.array(labels).T
@@ -311,6 +315,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         if self.modalities == ["all"]:
             print("returning all modalities")
             #TODO: remove labels argument from load_rgb_frames
+            clip_modalities_dict["depth_frames"] = self.depth_frames(recording_full_path, frame_ind)
             clip_modalities_dict["rgb_frames"] = self.load_rgb_frames(recording_full_path, frame_ind, labels)
             clip_modalities_dict["point_clouds"] = self.load_point_clouds(recording_full_path, frame_ind)
 
@@ -329,11 +334,14 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
 
         # return self.video_to_tensor(rgb_clip), torch.from_numpy(labels), vid_idx, frame_pad
 
+
+
+
 if __name__ == "__main__":
     dataset_path = r'C:\HoloLens'
     furniture_list = ["Coffee_Table"]
     dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=64, rgb_label_watermark=True)
-    clip_num = 31
+    clip_num = 0
     clip_data_dict = dataset[clip_num]
     clip_frames = clip_data_dict["rgb_frames"]
     print("printing clip number 8 with size: ", clip_frames[0].shape)
