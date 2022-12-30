@@ -10,7 +10,9 @@ import torch
 import matplotlib.pyplot as plt
 from utils import getNumRecordings, getListFromFile, getNumFrames, saveVideoClip, addTextToImg
 import json
-
+import plotly.express as px
+import plotly.graph_objects as go
+import pandas as pd
 
 class HololensStreamRecBase():
     """Face Landmarks dataset."""
@@ -67,7 +69,7 @@ class HololensStreamRecBase():
         return
 
     def __len__(self):
-        return 10
+        return
 
     def get_video_info_table(self, dataset='all'):
         """
@@ -153,7 +155,20 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         self.annotated_videos = self.get_video_frame_labels()
         self.clip_set, self.clip_label_count = self.get_clips()
         # print(self.clip_set)
-        print([(label, self.clip_label_count[i]) for i, label in enumerate(self.action_list)])
+        labels =[]
+        clip_labels_count =[]
+        for i, label in enumerate(self.action_list):
+            print((label, self.clip_label_count[i]))
+            if(self.clip_label_count[i]>20000):
+                continue
+            labels.append(label)
+            clip_labels_count.append(self.clip_label_count[i])
+
+        # Create a dataframe with the bin names and values
+        df = pd.DataFrame({'bin': labels, 'count': clip_labels_count})
+        # Create a histogram figure
+        fig = px.histogram(df, x='bin', y='count', title='Histogram')
+        fig.write_html("D:\loaded_clips\LabeledFramesPerAction.html")
 
     def get_video_frame_labels(self):
         # Extract the label data from the database
@@ -211,7 +226,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         clip_dataset = []
         label_count = np.zeros(self.num_classes)
         # for i, data in enumerate(self.annotated_videos):
-        for i, data in enumerate(self.annotated_videos[:10]):
+        for i, data in enumerate(self.annotated_videos):
             n_frames = data[2]
             n_clips = int(n_frames / (self.frames_per_clip * self.frame_skip))
             # remaining_frames = n_frames % (self.frames_per_clip * self.frame_skip)
@@ -295,16 +310,28 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
 if __name__ == "__main__":
     dataset_path = r'C:\HoloLens'
     furniture_list = ["Coffee_Table"]
-    dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=256, rgb_label_watermark=True)
-    clip_num = 14
+    dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=64, rgb_label_watermark=True)
+    clip_num = 31
     clip_frames = dataset[clip_num]
     print("printing clip number 8 with size: ", clip_frames[0].shape)
+
     # print(printable_img_data)
     vid_clip_name = r"D:\loaded_clips\clip_{}.avi".format(clip_num)
     saveVideoClip(vid_clip_name, clip_frames)
-    c = plt.imshow( np.transpose(clip_frames[0], (1, 2, 0)))
+    user_input = input("input frame number")
+    while(user_input!="q"):
 
-    plt.show()
+        user_input = int(user_input)
+        if (user_input >= len(dataset)):
+            print("you idiot")
+        clip_frames = dataset[user_input]
+        vid_clip_name = r"D:\loaded_clips\clip_{}.avi".format(user_input)
+        saveVideoClip(vid_clip_name, clip_frames)
+        user_input = input("input frame number")
+    c = plt.imshow(np.transpose(clip_frames[0], (1, 2, 0)))
+    shape = (256,4,6)
+
+    # plt.show()
 
 
     # labels = clip_8[1]
