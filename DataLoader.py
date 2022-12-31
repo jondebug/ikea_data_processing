@@ -3,6 +3,7 @@
 import pathlib
 
 import cv2
+import timeit
 import numpy as np
 import os
 import torchvision
@@ -158,7 +159,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         labels =[]
         clip_labels_count =[]
         for i, label in enumerate(self.action_list):
-            print((label, self.clip_label_count[i]))
+            # print((label, self.clip_label_count[i]))
             if(self.clip_label_count[i]>20000):
                 continue
             labels.append(label)
@@ -186,7 +187,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
             # video_id = row['id']
             annotation_table = self.get_video_annotations_table(video_path)
             if not annotation_table:
-                print(f"reached an unannotated directory: {video_path}!!!")
+                # print(f"reached an unannotated directory: {video_path}!!!")
                 continue
             for ann_row in annotation_table:
                 action = ann_row["label"]  # map the labels
@@ -253,40 +254,54 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         point_clouds = []
         for index in frame_indices:
             point_cloud_full_path = os.path.join(rec_dir, "norm", "Depth Long Throw", "{}.ply".format(index))
-
+            #92160 is the number of depth data points.
+            target_points = torch.zeros(92160, 9)
             ply_data = plyfile.PlyData.read(point_cloud_full_path)
             points = ply_data['vertex'].data
+            # print(len(points))
             points = [list(point) for point in points]
-            points = torch.Tensor(points)
-            point_clouds.append(points)
-        return point_clouds
+            target_points[:len(points), :] = torch.tensor(points)
+            # print(len(target_points))
+            # points = torch.Tensor(points)
+            point_clouds.append(target_points)
+        return torch.stack(point_clouds)
 
-    def depth_frames(self, rec_dir, frame_indices):
+    def load_data_frames_from_csv(self, rec_dir, frame_indices, filename):
+        full_rec_csv_path = os.path.join(rec_dir, "norm", filename)
+
+        with open(full_rec_csv_path, "rb") as full_rec_csv_f:
+            clip_data = np.loadtxt(full_rec_csv_f, delimiter=",")[frame_indices, :]
+        return torch.Tensor(clip_data)
+
+    def load_depth_frames(self, rec_dir, frame_indices):
         depth_frames = []
         for index in frame_indices:
-            depth_frame_full_path= os.path.join(rec_dir, "norm", "Depth Long Throw", "{}.pgm".format(index))
+            depth_frame_full_path = os.path.join(rec_dir, "norm", "Depth Long Throw", "{}.pgm".format(index))
             pgm_data = read16BitPGM(depth_frame_full_path)
             depth_frames.append(pgm_data)
-        print(depth_frames)
         return torch.Tensor(depth_frames)
+
     def load_rgb_frames(self, rec_dir, frame_indices, labels=[]):
         # load video file and extract the frames
         np_labels = np.array(labels).T
-        print(np_labels.shape)
         frames = []
         print(frame_indices)
         # TODO: only get labels when watermark is necessary
         str_labels = self.getLabelsInClipIdx(np_labels)
-        assert (self.rgb_label_watermark and labels != []) or not self.rgb_label_watermark
+        assert (self.rgb_label_watermark and len(labels) > 0) or not self.rgb_label_watermark
         for frame_num in frame_indices:
             rgb_frame_full_path = os.path.join(rec_dir, "norm", "pv", "{}.png".format(frame_num))
             assert os.path.exists(rgb_frame_full_path)
             if self.rgb_label_watermark:
                 frame = addTextToImg(rgb_frame_full_path, str_labels[frame_num - frame_indices[0]] + f", {frame_num}")
-
+                # print(frame.shape)
             else:
-                frame = torchvision.io.read_image(rgb_frame_full_path)
+                frame = torch.Tensor(torchvision.io.read_image(rgb_frame_full_path))
             frames.append(frame)
+
+        print(len(frames), len(frames[0]), len(frames[0][0]), len(frames[0][0][0]))
+        frames = torch.stack(frames)
+        print(frames.shape)
         return frames
 
     #
@@ -315,18 +330,30 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         if self.modalities == ["all"]:
             print("returning all modalities")
             #TODO: remove labels argument from load_rgb_frames
-            clip_modalities_dict["depth_frames"] = self.depth_frames(recording_full_path, frame_ind)
             clip_modalities_dict["rgb_frames"] = self.load_rgb_frames(recording_full_path, frame_ind, labels)
+            clip_modalities_dict["depth_frames"] = self.load_depth_frames(recording_full_path, frame_ind)
             clip_modalities_dict["point_clouds"] = self.load_point_clouds(recording_full_path, frame_ind)
+            clip_modalities_dict["eye_data_frames"] = self.load_data_frames_from_csv(recording_full_path, frame_ind,
+                                                                                     filename="norm_proc_eye_data.csv")
+            clip_modalities_dict["hand_data_frames"] = self.load_data_frames_from_csv(recording_full_path, frame_ind,
+                                                                                     filename="norm_proc_hand_data.csv")
 
             return clip_modalities_dict
 
         for mod in self.modalities:
             if mod == "pv":
                 clip_modalities_dict["rgb_frames"] = self.load_rgb_frames(recording_full_path, frame_ind)
-            if mod == "point_clouds":
+            elif mod == "point_clouds":
                 clip_modalities_dict["point_clouds"] = self.load_point_clouds(recording_full_path, frame_ind)
-            # if mod == "eye_data":
+            elif mod == "depth_frames":
+                clip_modalities_dict["depth_frames"] = self.depth_frames(recording_full_path, frame_ind)
+            elif mod == "eye_data_frames":
+                clip_modalities_dict["eye_data_frames"] = self.load_data_frames_from_csv(
+                    recording_full_path, frame_ind, filename="norm_proc_eye_data.csv")
+            elif mod == "hand_data_frames":
+                clip_modalities_dict["hand_data_frames"] = self.load_data_frames_from_csv(
+                    recording_full_path, frame_ind, filename="norm_proc_hand_data.csv")
+
             #
             # if mod = "depth":
         # imgs = self.transform(imgs)
@@ -344,23 +371,23 @@ if __name__ == "__main__":
     clip_num = 0
     clip_data_dict = dataset[clip_num]
     clip_frames = clip_data_dict["rgb_frames"]
-    print("printing clip number 8 with size: ", clip_frames[0].shape)
+    for mod in clip_data_dict.keys():
+        print(mod)
+        print(clip_data_dict[mod].shape)
 
-    # print(printable_img_data)
     vid_clip_name = r"D:\loaded_clips\clip_{}.avi".format(clip_num)
     saveVideoClip(vid_clip_name, clip_frames)
-    user_input = input("input frame number")
-    while(user_input!="q"):
-
-        user_input = int(user_input)
-        if (user_input >= len(dataset)):
-            print("you idiot")
-        clip_frames = dataset[user_input]
-        vid_clip_name = r"D:\loaded_clips\clip_{}.avi".format(user_input)
-        saveVideoClip(vid_clip_name, clip_frames)
-        user_input = input("input frame number")
-    c = plt.imshow(np.transpose(clip_frames[0], (1, 2, 0)))
-    shape = (256,4,6)
+    # user_input = input("input frame number")
+    # while(user_input!="q"):
+    #
+    #     user_input = int(user_input)
+    #     if (user_input >= len(dataset)):
+    #         print("you idiot")
+    #     clip_frames = dataset[user_input]
+    #     vid_clip_name = r"D:\loaded_clips\clip_{}.avi".format(user_input)
+    #     saveVideoClip(vid_clip_name, clip_frames)
+    #     user_input = input("input frame number")
+    # c = plt.imshow(np.transpose(clip_frames[0], (1, 2, 0)))
 
     # plt.show()
 
