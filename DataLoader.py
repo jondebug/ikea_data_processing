@@ -1,6 +1,7 @@
 # from torch.utils.data import Dataset
 # from pathlib import Path
 import pathlib
+import matplotlib.pyplot as plt
 
 import cv2
 import timeit
@@ -338,7 +339,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
             clip_modalities_dict["hand_data_frames"] = self.load_data_frames_from_csv(recording_full_path, frame_ind,
                                                                                      filename="norm_proc_hand_data.csv")
 
-            return clip_modalities_dict
+            return clip_modalities_dict, torch.from_numpy(labels),  vid_idx, frame_pad
 
         for mod in self.modalities:
             if mod == "pv":
@@ -354,10 +355,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
                 clip_modalities_dict["hand_data_frames"] = self.load_data_frames_from_csv(
                     recording_full_path, frame_ind, filename="norm_proc_hand_data.csv")
 
-            #
-            # if mod = "depth":
-        # imgs = self.transform(imgs)
-        return clip_modalities_dict
+        return clip_modalities_dict, torch.from_numpy(labels),  vid_idx, frame_pad
 
         # return self.video_to_tensor(rgb_clip), torch.from_numpy(labels), vid_idx, frame_pad
 
@@ -367,16 +365,40 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
 if __name__ == "__main__":
     dataset_path = r'C:\HoloLens'
     furniture_list = ["Coffee_Table"]
-    dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=64, rgb_label_watermark=True)
+    frames_per_clip_list = [8,16,32,64,128,256]
+    run_times = []
     clip_num = 0
-    clip_data_dict = dataset[clip_num]
+
+    for frames_per_clip in frames_per_clip_list:
+        dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=frames_per_clip, rgb_label_watermark=False, )
+        start = timeit.default_timer()
+        clip_data_dict, labels, vid_idx, frame_pad = dataset[clip_num]
+        stop = timeit.default_timer()
+        run_times.append(stop-start)
+        print(stop-start)
+    print(run_times)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+
+    ax.plot(frames_per_clip_list, run_times)
+    plt.xlabel('clip length')
+    plt.ylabel('time [s]')
+    plt.title('getitem time for All modalities')
+    for xy in zip(frames_per_clip_list, run_times):  #
+        ax.annotate('(%s, %s)' % xy, xy=xy, textcoords='data')
+
+    plt.show()
+    exit()
+    clip_num = 0
+    clip_data_dict, labels,  vid_idx, frame_pad = dataset[clip_num]
     clip_frames = clip_data_dict["rgb_frames"]
     for mod in clip_data_dict.keys():
         print(mod)
         print(clip_data_dict[mod].shape)
 
-    vid_clip_name = r"D:\loaded_clips\clip_{}.avi".format(clip_num)
-    saveVideoClip(vid_clip_name, clip_frames)
+    # vid_clip_name = r"D:\loaded_clips\clip_{}.avi".format(clip_num)
+    # saveVideoClip(vid_clip_name, clip_frames)
     # user_input = input("input frame number")
     # while(user_input!="q"):
     #
