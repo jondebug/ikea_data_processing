@@ -251,6 +251,28 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         return action_strings
 
 
+    def load_point_clouds_2(self, rec_dir, frame_indices):
+        frames = []
+        for counter, i in enumerate(frame_indices):
+            target_points = torch.zeros(92160, 9)
+            point_cloud_full_path = os.path.join(rec_dir, "norm", "Depth Long Throw", "{}.ply".format(i))
+            plydata = plyfile.PlyData.read(point_cloud_full_path)
+            d = np.asarray(plydata['vertex'].data)
+            pc = np.column_stack([d[p.name] for p in plydata['vertex'].properties])
+            # print(pc.shape)
+            target_points[:pc.shape[0], :] = torch.from_numpy(pc)
+            # if counter == 0:  # set the translation and scale consistently throughout the sequence
+            #     t = torch.mean(pc[:, 0:3], axis=0)
+            #     s = torch.linalg.norm(torch.max(torch.abs(pc[:, 0:3] - t), axis=0)[0])
+            # pc[:, 0:3] = (pc[:, 0:3] - t) / s
+            # if n_points is not None:
+            #     indices = torch.randperm(len(pc))[:n_points]
+            #     pc = pc[indices, :]
+            # print(target_points.shape)
+            frames.append(target_points)
+        return torch.stack(frames, 0)
+
+
     def load_point_clouds(self, rec_dir, frame_indices):
         point_clouds = []
         for index in frame_indices:
@@ -330,7 +352,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
             #TODO: remove labels argument from load_rgb_frames
             clip_modalities_dict["rgb_frames"] = self.load_rgb_frames(recording_full_path, frame_ind, labels)
             clip_modalities_dict["depth_frames"] = self.load_depth_frames(recording_full_path, frame_ind)
-            clip_modalities_dict["point_clouds"] = self.load_point_clouds(recording_full_path, frame_ind)
+            clip_modalities_dict["point_clouds"] = self.load_point_clouds_2(recording_full_path, frame_ind)
             clip_modalities_dict["eye_data_frames"] = self.load_data_frames_from_csv(recording_full_path, frame_ind,
                                                                                      filename="norm_proc_eye_data.csv")
             clip_modalities_dict["hand_data_frames"] = self.load_data_frames_from_csv(recording_full_path, frame_ind,
@@ -342,7 +364,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
             if mod == "pv":
                 clip_modalities_dict["rgb_frames"] = self.load_rgb_frames(recording_full_path, frame_ind)
             elif mod == "point_clouds":
-                clip_modalities_dict["point_clouds"] = self.load_point_clouds(recording_full_path, frame_ind)
+                clip_modalities_dict["point_clouds"] = self.load_point_clouds_2(recording_full_path, frame_ind)
             elif mod == "depth_frames":
                 clip_modalities_dict["depth_frames"] = self.load_depth_frames(recording_full_path, frame_ind)
             elif mod == "eye_data_frames":
@@ -362,14 +384,14 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
 if __name__ == "__main__":
     dataset_path = r'C:\HoloLens'
     furniture_list = ["Coffee_Table"]
-    frames_per_clip_list = [8,16,32,64,128,256]
-    run_times = [0,0,0,0,0,0]
+    frames_per_clip_list = [8,16,32,64]
+    run_times = [0,0,0,0]
     clip_num = 0
-    num_runs=1
+    num_runs=10
     for run in range(num_runs):
         for i, frames_per_clip in enumerate(frames_per_clip_list):
             dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=frames_per_clip,
-                                                   rgb_label_watermark=False, modalities=["rgb_frames"])
+                                                   rgb_label_watermark=False, modalities=["point_clouds"])
             start = timeit.default_timer()
             clip_data_dict, labels, vid_idx, frame_pad = dataset[clip_num]
             stop = timeit.default_timer()
