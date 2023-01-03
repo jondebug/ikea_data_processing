@@ -207,7 +207,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
                 if action == 'pick up drawer bottom panel ' : action = 'pick up bottom panel'
                 if action == 'allign drawer bottom panel '  or action == 'allign drawer back panel': action = 'N/A' #TODO: fix this!!!
                 if action == 'spin drawer knob screw' : action = 'spin drawer knob'
-                if action ==  'pick drawer up side panel' : action =  'pick up side panel'
+                if action == 'pick drawer up side panel' : action =  'pick up side panel'
 
                 action_id = self.action_name_to_id_mapping[action]
                 # object_id = ann_row["object_id"]
@@ -255,15 +255,12 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         point_clouds = []
         for index in frame_indices:
             point_cloud_full_path = os.path.join(rec_dir, "norm", "Depth Long Throw", "{}.ply".format(index))
-            #92160 is the number of depth data points.
             target_points = torch.zeros(92160, 9)
             ply_data = plyfile.PlyData.read(point_cloud_full_path)
             points = ply_data['vertex'].data
-            # print(len(points))
+            # [(),(),()]=>[[],[],[]]
             points = [list(point) for point in points]
             target_points[:len(points), :] = torch.tensor(points)
-            # print(len(target_points))
-            # points = torch.Tensor(points)
             point_clouds.append(target_points)
         return torch.stack(point_clouds)
 
@@ -347,7 +344,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
             elif mod == "point_clouds":
                 clip_modalities_dict["point_clouds"] = self.load_point_clouds(recording_full_path, frame_ind)
             elif mod == "depth_frames":
-                clip_modalities_dict["depth_frames"] = self.depth_frames(recording_full_path, frame_ind)
+                clip_modalities_dict["depth_frames"] = self.load_depth_frames(recording_full_path, frame_ind)
             elif mod == "eye_data_frames":
                 clip_modalities_dict["eye_data_frames"] = self.load_data_frames_from_csv(
                     recording_full_path, frame_ind, filename="norm_proc_eye_data.csv")
@@ -366,27 +363,29 @@ if __name__ == "__main__":
     dataset_path = r'C:\HoloLens'
     furniture_list = ["Coffee_Table"]
     frames_per_clip_list = [8,16,32,64,128,256]
-    run_times = []
+    run_times = [0,0,0,0,0,0]
     clip_num = 0
-
-    for frames_per_clip in frames_per_clip_list:
-        dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=frames_per_clip, rgb_label_watermark=False, )
-        start = timeit.default_timer()
-        clip_data_dict, labels, vid_idx, frame_pad = dataset[clip_num]
-        stop = timeit.default_timer()
-        run_times.append(stop-start)
-        print(stop-start)
+    num_runs=1
+    for run in range(num_runs):
+        for i, frames_per_clip in enumerate(frames_per_clip_list):
+            dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=frames_per_clip,
+                                                   rgb_label_watermark=False, modalities=["rgb_frames"])
+            start = timeit.default_timer()
+            clip_data_dict, labels, vid_idx, frame_pad = dataset[clip_num]
+            stop = timeit.default_timer()
+            run_times[i] += (stop-start)/num_runs
+            print(stop-start)
     print(run_times)
 
-    fig = plt.figure()
+    fig = plt.figure(figsize=(12, 8))
     ax = fig.add_subplot(111)
 
     ax.plot(frames_per_clip_list, run_times)
     plt.xlabel('clip length')
-    plt.ylabel('time [s]')
-    plt.title('getitem time for All modalities')
+    plt.ylabel('time [ms]')
+    plt.title('getitem time for eye and hand data')
     for xy in zip(frames_per_clip_list, run_times):  #
-        ax.annotate('(%s, %s)' % xy, xy=xy, textcoords='data')
+        ax.annotate(f'({xy[0]:.3f},{1000*xy[1]:.3f})', xy=xy, textcoords='data')
 
     plt.show()
     exit()
