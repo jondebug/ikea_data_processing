@@ -11,6 +11,7 @@ import numpy as np
 import random
 import json
 from PIL import Image, ImageDraw, ImageFont
+import struct
 
 import torchvision.transforms as transforms
 
@@ -31,9 +32,12 @@ def read16BitPGM(pgm_dir):
         for y in range(height):
            row = []
            for y in range(width):
-               low_bits = ord(pgmf.read(1))
-               row.append(low_bits+255*ord(pgmf.read(1)))
+               low_bits =struct.unpack('i', pgmf.read(2))[0]
+               row.append(low_bits)
+               # low_bits = ord(pgmf.read(2))
+               # row.append(low_bits+255*ord(pgmf.read(1)))
            raster.append(row)
+        print(raster)
         return raster
 
 
