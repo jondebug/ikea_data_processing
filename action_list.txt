@@ -46,3 +46,21 @@ pick up table top
 flip whole coffee table
 flip whole drawer
 flip whole table
+pick up stool side
+pick up	stool screw
+allign stool beam
+manually insert	stool screw
+pick up drill
+use drill
+lay down drill
+lay down stool beam
+pick up stool beam
+pick up bottom stool step
+turn bottom stool step
+attach stool side
+lay down stool side
+lay down stool screw
+flip stool
+move top stool step
+allign top stool step
+attach bottom stool step
