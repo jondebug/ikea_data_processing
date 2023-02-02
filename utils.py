@@ -17,6 +17,48 @@ import torchvision.transforms as transforms
 
 from hand_defs import HandJointIndex
 
+
+def imread_pgm(pgmdir):
+    depth_image = cv2.imread(pgmdir, -1)
+
+    # print(depth_image[100])
+
+    return depth_image
+
+
+def fps(points, n_points):
+    # returns farthers point distance sampling
+    # shuffle each sequence individually but keep correspondance throughout the sequence
+    """
+    Input:
+        points: pointcloud data, [N, 3]
+    Return:
+        points: farthest sampled pointcloud, [npoint]
+    """
+    xyz = points[0] #use the first frame for sampling
+    N, C = xyz.shape
+    centroids = np.zeros(n_points)
+
+    distance = np.ones(N) * 1e10
+    farthest = np.random.randint(0, N)
+    idxs = np.array(farthest)[None]
+
+    for i in range(n_points-1):
+        centroids[i] = farthest
+        centroid = xyz[farthest, :3]
+        dist = np.sum((xyz[:, :3] - centroid) ** 2, -1)
+        mask = dist < distance
+        distance[mask] = dist[mask]
+        farthest = np.array(np.argmax(distance, -1))[None]
+        idxs = np.concaten
+
+
+        ate([idxs, farthest])
+
+    return points[:, idxs]
+
+
+
 def read16BitPGM(pgm_dir):
     """Return a raster of integers from a PGM as a list of lists."""
     with open(pgm_dir, 'rb') as pgmf:
@@ -32,12 +74,16 @@ def read16BitPGM(pgm_dir):
         for y in range(height):
            row = []
            for y in range(width):
-               low_bits =struct.unpack('i', pgmf.read(2))[0]
-               row.append(low_bits)
-               # low_bits = ord(pgmf.read(2))
+               cv2.imread('a.pgm', -1)
+               ###############
+               # low_bits =int.from_bytes(pgmf.read(2), byteorder='big')
+               # row.append(low_bits)
+               ###############
+               # low_bits = ord(pgmf.read(1))
                # row.append(low_bits+255*ord(pgmf.read(1)))
+               ###############
            raster.append(row)
-        print(raster)
+        # print(raster)
         return raster
 
 
@@ -223,14 +269,14 @@ def getSepereateFurnitureRecDirLists(dataset_dir):
 
 def createTrainTestFiles(dataset_dir, train_ratio=0.7):
     furniture_sep_rec_dir_list = getSepereateFurnitureRecDirLists(dataset_dir)
-
+    print(furniture_sep_rec_dir_list)
     all_train_recordings = []
     all_test_recordings = []
 
     for furniture_name, idx_file_path in furniture_sep_rec_dir_list:
         # check that all furniture indexing files are created.
+        print("rec path:", idx_file_path)
         assert (os.path.exists(idx_file_path))
-        print(idx_file_path)
         recording_dir_list = getListFromFile(idx_file_path)
         random.shuffle(recording_dir_list)
         num_furniture_recordings = len(recording_dir_list)

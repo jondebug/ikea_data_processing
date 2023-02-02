@@ -80,13 +80,21 @@ def createPVtoDepthHandEyeMapping(rec_dir, depth_path_suffix='', sensor_name="De
     print("got mapping. creating normalized data dir for recording")
     return pv_to_depth_hand_eye_mapping
 
+def checkNormalized(path, sensor_name="Depth Long Throw"):
+    if not os.path.exists(os.path.join(path, "norm")):
+        return False
+    return True
 
 def normalizeAllRecordingsInPath(path, sensor_name="Depth Long Throw"):
-    if "_recDir" in path[-8:]:
+    if "_recDir" in path[-30:]:
+        if checkNormalized(path):
+            # TODO: remove this check because it does not check if a folder is really normalized properly
+            print(f"{path} already normalized (or atleast the norm folder exists) ")
+            return
         w_path = Path(path)
         pv_to_depth_hand_eye_mapping = createPVtoDepthHandEyeMapping(path)
         createNormalizedFiles(rec_dir=path, pv_to_depth_hand_eye_mapping=pv_to_depth_hand_eye_mapping)
-        removeOriginalProcessedData(Path(path), sensor_name)
+        # removeOriginalProcessedData(Path(path), sensor_name)
         create_processed_had_eye_csv(w_path)
         return
 
@@ -97,4 +105,4 @@ def normalizeAllRecordingsInPath(path, sensor_name="Depth Long Throw"):
 
 if __name__ == '__main__':
     # w_path = Path(r'C:\HoloLens')
-    normalizeAllRecordingsInPath(r'C:\HoloLens')
+    normalizeAllRecordingsInPath(r'C:\HoloLens\Stool')

@@ -10,7 +10,7 @@ import os
 import torchvision
 import torch
 import matplotlib.pyplot as plt
-from utils import getNumRecordings, getListFromFile, getNumFrames, saveVideoClip, addTextToImg, read16BitPGM
+from utils import getNumRecordings, getListFromFile, getNumFrames, saveVideoClip, addTextToImg, read16BitPGM, imread_pgm
 import json
 import plotly.express as px
 import plotly.graph_objects as go
@@ -132,7 +132,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
     def __init__(self, dataset_path, furniture_list: list, action_list_filename='action_list.txt',
                  train_filename='all_train_dir_list.txt', test_filename='all_train_dir_list.txt', transform=None,
                  gt_annotation_filename='db_gt_annotations.json', modalities=["all"], frame_skip=1, frames_per_clip=32,
-                 dataset="train", rgb_label_watermark=False):
+                 dataset="train", rgb_label_watermark=False, furniture_mod = ["all"]):
 
         super().__init__(dataset_path, furniture_list, action_list_filename,
                          train_filename, test_filename, transform, gt_annotation_filename)
@@ -148,12 +148,12 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         self.frames_per_clip = frames_per_clip
 
         if self.set == 'train':
-            self.video_list = self.train_video_list
+            self.video_list = self.filterFurnitureModalities(self.train_video_list)
         elif self.set == 'test':
-            self.video_list = self.test_video_list
+            self.video_list = self.filterFurnitureModalities(self.test_video_list)
         else:
             raise ValueError("Invalid set name")
-
+        print("got the following video list: ", self.video_list)
         self.annotated_videos = self.get_video_frame_labels()
         self.clip_set, self.clip_label_count = self.get_clips()
         # print(self.clip_set)
@@ -171,6 +171,17 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         # Create a histogram figure
         fig = px.histogram(df, x='bin', y='count', title='Histogram')
         fig.write_html("D:\loaded_clips\LabeledFramesPerAction.html")
+
+    def filterFurnitureModalities(self, rec_list, furniture_mod):
+        if furniture_mod == ["all"]:
+            return rec_list
+        filtered_rec_list = []
+        for furniture_name in furniture_mod:
+            for rec in rec_list:
+                if f"\HoloLens\\{furniture_name}\\" in rec:
+                    filtered_rec_list.append(rec)
+        return filtered_rec_list
+
 
     def get_video_frame_labels(self):
         # Extract the label data from the database
@@ -288,7 +299,8 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         depth_frames = []
         for index in frame_indices:
             depth_frame_full_path = os.path.join(rec_dir, "norm", "Depth Long Throw", "{}.pgm".format(index))
-            pgm_data = read16BitPGM(depth_frame_full_path)
+            pgm_data = imread_pgm(depth_frame_full_path)
+            # pgm_data = read16BitPGM(depth_frame_full_path)
             depth_frames.append(pgm_data)
         return torch.Tensor(depth_frames)
 
@@ -375,10 +387,15 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
 if __name__ == "__main__":
     dataset_path = r'C:\HoloLens'
     furniture_list = ["Coffee_Table"]
-    frames_per_clip_list = [8]#,16,32,64]
-    run_times = [0]#,0,0,0]
+    frames_per_clip_list = [8,16,32,64]
+    # frames_per_clip_list = [8]#,16,32,64]
+    run_times = [0,0,0,0]
+    # run_times = [0]#,0,0,0]
     clip_num = 0
     num_runs=1
+    dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=32,
+                                           rgb_label_watermark=False, modalities=["rgb_frames"])
+    exit()
     for run in range(num_runs):
         for i, frames_per_clip in enumerate(frames_per_clip_list):
             dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=frames_per_clip,

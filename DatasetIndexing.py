@@ -30,9 +30,9 @@ def createSeperateFurnitureRecLists(dataset_dir):
 def createAllIndexingFiles(dataset_dir):
     # w_path = Path(dataset_dir)
     indexing_files_path = os.path.join(dataset_dir, "indexing_files")
-    #
-    # if not os.path.exists(indexing_files_path): os.mkdir(indexing_files_path)
-    #
+
+    if not os.path.exists(indexing_files_path): os.mkdir(indexing_files_path)
+
     recording_dir_list_path = os.path.join(indexing_files_path, "all_recording_dir_list.txt")
     createAllRecordingDirList(dataset_dir=dataset_dir, target_file=recording_dir_list_path)
     createSeperateFurnitureRecLists(dataset_dir)
