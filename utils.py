@@ -12,10 +12,27 @@ import random
 import json
 from PIL import Image, ImageDraw, ImageFont
 import struct
+import open3d as o3d
+import numexpr as ne
 
 import torchvision.transforms as transforms
 
 from hand_defs import HandJointIndex
+
+
+def save_ply(output_path, points, rgb=None, cam2world_transform=None):
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points)
+    if rgb is not None:
+        pcd.colors = o3d.utility.Vector3dVector(rgb)
+    pcd.estimate_normals()
+    if cam2world_transform is not None:
+        # Camera center
+        camera_center = (cam2world_transform) @ np.array([0, 0, 0, 1])
+        o3d.geometry.PointCloud.orient_normals_towards_camera_location(pcd, camera_center[:3])
+
+    o3d.io.write_point_cloud(output_path, pcd)
+
 
 
 def imread_pgm(pgmdir):
@@ -25,8 +42,7 @@ def imread_pgm(pgmdir):
 
     return depth_image
 
-
-def fps(points, n_points):
+def fps_np(points, npoint):
     # returns farthers point distance sampling
     # shuffle each sequence individually but keep correspondance throughout the sequence
     """
@@ -35,28 +51,94 @@ def fps(points, n_points):
     Return:
         points: farthest sampled pointcloud, [npoint]
     """
-    xyz = points[0] #use the first frame for sampling
+    # xyz = points[0] #use the first frame for sampling
+    xyz = points
+
+    N, C = xyz.shape
+    centroids = np.zeros(npoint)
+    distance = np.ones(N) * 1e10
+    farthest = np.random.randint(0, N)
+    idxs = np.array(farthest)[None]
+
+    for i in range(npoint-1):
+        centroids[i] = farthest
+        centroid = xyz[farthest, :]
+        dist = np.sum((xyz - centroid) ** 2, -1)
+        mask = dist < distance
+        distance[mask] = dist[mask]
+        farthest = np.array(np.argmax(distance, -1))[None]
+        idxs = np.concatenate([idxs, farthest])
+
+
+    return points[idxs]
+
+def stochastic_vec_sample(vec, stochastic_sample_ratio_inv = 1):
+    target_length = int(len(vec)/stochastic_sample_ratio_inv)
+    np.random.shuffle(vec)
+    return vec[:target_length]
+
+
+def fps_ne(points, npoint, stochastic_sample:bool, stochastic_sample_ratio_inv = 1):
+    # returns farthers point distance sampling
+    # shuffle each sequence individually but keep correspondance throughout the sequence
+    """
+    Input:
+        points: pointcloud data, [N, 3]
+    Return:
+        points: farthest sampled pointcloud, [npoint]
+    """
+    # xyz = points[0] #use the first frame for sampling
+    xyz = points
+    if stochastic_sample:
+        assert len(points)/stochastic_sample_ratio_inv >= npoint
+        xyz = stochastic_vec_sample(xyz, stochastic_sample_ratio_inv)
+    N, C = xyz.shape
+    centroids = np.zeros(npoint)
+    distance = np.ones(N) * 1e10
+    farthest = np.random.randint(0, N)
+    idxs = np.array(farthest)[None]
+
+    for i in range(npoint-1):
+        centroids[i] = farthest
+        centroid = xyz[farthest, :]
+        dist = ne.evaluate('sum((xyz - centroid) ** 2, 1)')
+        mask = dist < distance
+        distance[mask] = dist[mask]
+        farthest = np.array(np.argmax(distance, -1))[None]
+        idxs = np.concatenate([idxs, farthest])
+
+
+    return points[idxs]
+
+
+def fps(n_points, points):
+    # returns farthers point distance sampling
+    # shuffle each sequence individually but keep correspondance throughout the sequence
+    """
+    Input:
+        points: pointcloud data, [N, 3]
+    Return:
+        points: farthest sampled pointcloud, [npoint]
+    """
+    # xyz = points[0] #use the first frame for sampling
+    xyz = points
+    print(xyz.shape)
     N, C = xyz.shape
     centroids = np.zeros(n_points)
-
     distance = np.ones(N) * 1e10
     farthest = np.random.randint(0, N)
     idxs = np.array(farthest)[None]
 
     for i in range(n_points-1):
         centroids[i] = farthest
-        centroid = xyz[farthest, :3]
-        dist = np.sum((xyz[:, :3] - centroid) ** 2, -1)
+        centroid = xyz[farthest, :]
+        dist = np.sum((xyz - centroid) ** 2, -1)
         mask = dist < distance
         distance[mask] = dist[mask]
         farthest = np.array(np.argmax(distance, -1))[None]
-        idxs = np.concaten
+        idxs = np.concatenate([idxs, farthest])
 
-
-        ate([idxs, farthest])
-
-    return points[:, idxs]
-
+    return points[idxs]
 
 
 def read16BitPGM(pgm_dir):
@@ -180,7 +262,7 @@ def saveVideoClip(clip_name, clip_frames):
     for frame in clip_frames:
         transposed_frame = np.transpose(frame, (1, 2, 0))
         video.write(cv2.cvtColor(np.array(transposed_frame), cv2.COLOR_RGB2BGR))
-
+    print("saved video: ",clip_name )
 def decodeJsonAnnotations(current_json_annotation: dict, fps_error_correction_mapping):
     print(f"current_json_annotation: {current_json_annotation.keys()}")
     id_to_name = getIdToNameMapping(current_json_annotation["config"]["actionLabelData"])

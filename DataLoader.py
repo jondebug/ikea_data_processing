@@ -35,6 +35,7 @@ class HololensStreamRecBase():
         self.furniture_dirs = [os.path.join(dataset_path, furniture_name) for furniture_name in furniture_list]
 
         for furniture_dir in self.furniture_dirs:
+            print(furniture_dir)
             assert os.path.exists(furniture_dir)
 
         self.furniture_dir_sizes = [getNumRecordings(_dir_) for _dir_ in self.furniture_dirs]
@@ -51,7 +52,7 @@ class HololensStreamRecBase():
         self.action_list.sort()
         if "N/A" in self.action_list:
             self.action_list.remove("N/A")
-
+        print(self.action_list)
         self.action_list.insert(0, "N/A")  # 0 label for unlabled frames
         self.num_classes = len(self.action_list)
         self.train_video_list = getListFromFile(self.train_filename)
@@ -140,6 +141,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         # self.camera = camera
         # self.resize = resize
         # self.input_type = input_type
+        self.furniture_mod = furniture_mod
         self.rgb_label_watermark = rgb_label_watermark
         self.modalities = modalities
         self.transform = transform
@@ -160,8 +162,8 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         labels =[]
         clip_labels_count =[]
         for i, label in enumerate(self.action_list):
-            # print((label, self.clip_label_count[i]))
-            if(self.clip_label_count[i]>20000):
+            print((label, self.clip_label_count[i]))
+            if(self.clip_label_count[i]>100000):
                 continue
             labels.append(label)
             clip_labels_count.append(self.clip_label_count[i])
@@ -172,11 +174,11 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         fig = px.histogram(df, x='bin', y='count', title='Histogram')
         fig.write_html("D:\loaded_clips\LabeledFramesPerAction.html")
 
-    def filterFurnitureModalities(self, rec_list, furniture_mod):
-        if furniture_mod == ["all"]:
+    def filterFurnitureModalities(self, rec_list):
+        if self.furniture_mod == ["all"]:
             return rec_list
         filtered_rec_list = []
-        for furniture_name in furniture_mod:
+        for furniture_name in self.furniture_mod:
             for rec in rec_list:
                 if f"\HoloLens\\{furniture_name}\\" in rec:
                     filtered_rec_list.append(rec)
@@ -188,6 +190,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         # outputs a dataset structure of (video_path, multi-label per-frame, number of frames in the video)
         video_info_table = self.get_video_info_table()
         vid_list = []
+
         for row in video_info_table:
             n_frames = int(row["nframes"])
             video_path = row['video_path']
@@ -219,8 +222,17 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
                 if action == 'allign drawer bottom panel '  or action == 'allign drawer back panel': action = 'N/A' #TODO: fix this!!!
                 if action == 'spin drawer knob screw' : action = 'spin drawer knob'
                 if action == 'pick drawer up side panel' : action =  'pick up side panel'
+                if action == 'pick up stool side ' : action ='pick up stool side'
+                if action ==  'pick up stool beam ': action ='pick up stool beam'
+                if action == 'manually insert stool screw ' : action = 'manually insert stool screw'
+                if action == 'pick up bottom stool step ' : action = 'pick up bottom stool step'
+                if action == 'allign top stool step '  : action = 'allign top stool step'
+                if action == 'flip stool '  : action = 'flip stool'
+
+
 
                 action_id = self.action_name_to_id_mapping[action]
+
                 # object_id = ann_row["object_id"]
                 # action_id = self.get_action_id(atomic_action_id, object_id)
                 start_frame = ann_row['segment'][0]
@@ -304,15 +316,16 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
             depth_frames.append(pgm_data)
         return torch.Tensor(depth_frames)
 
-    def load_rgb_frames(self, rec_dir, frame_indices, labels=[]):
+    def load_rgb_frames(self, rec_dir, frame_indices, labels):
         # load video file and extract the frames
         np_labels = np.array(labels).T
         frames = []
-        print(frame_indices)
+        print("frame indices: ", frame_indices)
         # TODO: only get labels when watermark is necessary
         str_labels = self.getLabelsInClipIdx(np_labels)
         assert (self.rgb_label_watermark and len(labels) > 0) or not self.rgb_label_watermark
         for frame_num in frame_indices:
+            print(frame_num)
             rgb_frame_full_path = os.path.join(rec_dir, "norm", "pv", "{}.png".format(frame_num))
             assert os.path.exists(rgb_frame_full_path)
             if self.rgb_label_watermark:
@@ -347,6 +360,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
     def __getitem__(self, index):
         # 'Generate one sample of data'
         recording_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad = self.clip_set[index]
+        print(labels)
         # return video_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad
         print(f"getting clip from recording {recording_full_path}")
         clip_modalities_dict = {}
@@ -364,8 +378,8 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
             return clip_modalities_dict, torch.from_numpy(labels),  vid_idx, frame_pad
 
         for mod in self.modalities:
-            if mod == "pv":
-                clip_modalities_dict["rgb_frames"] = self.load_rgb_frames(recording_full_path, frame_ind)
+            if mod == "rgb_frames":
+                clip_modalities_dict["rgb_frames"] = self.load_rgb_frames(recording_full_path, frame_ind, labels)
             elif mod == "point_clouds":
                 clip_modalities_dict["point_clouds"] = self.load_point_clouds_2(recording_full_path, frame_ind)
             elif mod == "depth_frames":
@@ -386,15 +400,22 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
 
 if __name__ == "__main__":
     dataset_path = r'C:\HoloLens'
-    furniture_list = ["Coffee_Table"]
-    frames_per_clip_list = [8,16,32,64]
+    furniture_list = ["Stool"]
+    frames_per_clip_list = [8, 16, 32, 64]
     # frames_per_clip_list = [8]#,16,32,64]
-    run_times = [0,0,0,0]
+    run_times = [0, 0, 0, 0]
     # run_times = [0]#,0,0,0]
     clip_num = 0
-    num_runs=1
-    dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=32,
-                                           rgb_label_watermark=False, modalities=["rgb_frames"])
+    num_runs = 1
+    dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=512,
+                                           rgb_label_watermark=True, modalities=["rgb_frames"])
+
+    clip_num = 100
+    clip_data_dict, labels,  vid_idx, frame_pad = dataset[clip_num]
+    print(clip_data_dict, labels)
+    clip_frames = clip_data_dict["rgb_frames"]
+    vid_clip_name = r"D:\loaded_clips\clip_{}.avi".format(clip_num)
+    saveVideoClip(vid_clip_name, clip_frames)
     exit()
     for run in range(num_runs):
         for i, frames_per_clip in enumerate(frames_per_clip_list):
@@ -426,10 +447,6 @@ if __name__ == "__main__":
         print(mod)
         print(clip_data_dict[mod].shape)
 
-    # vid_clip_name = r"D:\loaded_clips\clip_{}.avi".format(clip_num)
-    # saveVideoClip(vid_clip_name, clip_frames)
-    # user_input = input("input frame number")
-    # while(user_input!="q"):
     #
     #     user_input = int(user_input)
     #     if (user_input >= len(dataset)):
