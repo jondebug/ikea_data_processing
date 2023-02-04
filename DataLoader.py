@@ -133,7 +133,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
     def __init__(self, dataset_path, furniture_list: list, action_list_filename='action_list.txt',
                  train_filename='all_train_dir_list.txt', test_filename='all_train_dir_list.txt', transform=None,
                  gt_annotation_filename='db_gt_annotations.json', modalities=["all"], frame_skip=1, frames_per_clip=32,
-                 dataset="train", rgb_label_watermark=False, furniture_mod = ["all"]):
+                 dataset="train", rgb_label_watermark=False, furniture_mod = ["all"], smallDataset=False):
 
         super().__init__(dataset_path, furniture_list, action_list_filename,
                          train_filename, test_filename, transform, gt_annotation_filename)
@@ -141,6 +141,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         # self.camera = camera
         # self.resize = resize
         # self.input_type = input_type
+        self.smallDataset = smallDataset
         self.furniture_mod = furniture_mod
         self.rgb_label_watermark = rgb_label_watermark
         self.modalities = modalities
@@ -278,7 +279,11 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         frames = []
         for counter in frame_indices:
             target_points = torch.zeros(92160, 9)
-            point_cloud_full_path = os.path.join(rec_dir, "norm", "Depth Long Throw", "{}.ply".format(i))
+            if self.smallDataset:
+                point_cloud_full_path = os.path.join(rec_dir, "norm", "Depth Long Throw", "{}.ply".format(i))
+            else:
+                point_cloud_full_path = os.path.join(rec_dir, "Depth Long Throw", "{}.ply".format(i))
+
             plydata = plyfile.PlyData.read(point_cloud_full_path)
             d = np.asarray(plydata['vertex'].data)
             pc = np.column_stack([d[p.name] for p in plydata['vertex'].properties])
@@ -290,7 +295,11 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
     def load_point_clouds(self, rec_dir, frame_indices):
         point_clouds = []
         for index in frame_indices:
-            point_cloud_full_path = os.path.join(rec_dir, "norm", "Depth Long Throw", "{}.ply".format(index))
+            if self.smallDataset:
+                point_cloud_full_path = os.path.join(rec_dir, "norm", "Depth Long Throw", "{}.ply".format(index))
+            else:
+                point_cloud_full_path = os.path.join(rec_dir, "Depth Long Throw", "{}.ply".format(index))
+
             target_points = torch.zeros(92160, 9)
             ply_data = plyfile.PlyData.read(point_cloud_full_path)
             points = ply_data['vertex'].data
@@ -301,7 +310,11 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         return torch.stack(point_clouds)
 
     def load_data_frames_from_csv(self, rec_dir, frame_indices, filename):
-        full_rec_csv_path = os.path.join(rec_dir, "norm", filename)
+        if self.smallDataset:
+            full_rec_csv_path = os.path.join(rec_dir, "norm", filename)
+        else:
+            full_rec_csv_path = os.path.join(rec_dir, filename)
+
 
         with open(full_rec_csv_path, "rb") as full_rec_csv_f:
             clip_data = np.loadtxt(full_rec_csv_f, delimiter=",")[frame_indices, :]
@@ -310,7 +323,11 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
     def load_depth_frames(self, rec_dir, frame_indices):
         depth_frames = []
         for index in frame_indices:
-            depth_frame_full_path = os.path.join(rec_dir, "norm", "Depth Long Throw", "{}.pgm".format(index))
+            if self.smallDataset:
+                depth_frame_full_path = os.path.join(rec_dir, "norm", "Depth Long Throw", "{}.pgm".format(index))
+            else:
+                depth_frame_full_path = os.path.join(rec_dir, "Depth Long Throw", "{}.pgm".format(index))
+
             pgm_data = imread_pgm(depth_frame_full_path)
             # pgm_data = read16BitPGM(depth_frame_full_path)
             depth_frames.append(pgm_data)
@@ -326,7 +343,11 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         assert (self.rgb_label_watermark and len(labels) > 0) or not self.rgb_label_watermark
         for frame_num in frame_indices:
             print(frame_num)
-            rgb_frame_full_path = os.path.join(rec_dir, "norm", "pv", "{}.png".format(frame_num))
+            if self.smallDataset:
+                rgb_frame_full_path = os.path.join(rec_dir, "norm", "pv", "{}.png".format(frame_num))
+            else:
+                rgb_frame_full_path = os.path.join(rec_dir, "pv", "{}.png".format(frame_num))
+
             assert os.path.exists(rgb_frame_full_path)
             if self.rgb_label_watermark:
                 frame = addTextToImg(rgb_frame_full_path, str_labels[frame_num - frame_indices[0]] + f", {frame_num}")
@@ -399,7 +420,9 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
 
 
 if __name__ == "__main__":
-    dataset_path = r'C:\HoloLens'
+    dataset_path = r'C:\SmallDataset'
+    smallDataset = "SmallDataset" in dataset_path
+    print("SmallDataset: ", smallDataset)
     furniture_list = ["Stool"]
     frames_per_clip_list = [8, 16, 32, 64]
     # frames_per_clip_list = [8]#,16,32,64]
@@ -407,8 +430,8 @@ if __name__ == "__main__":
     # run_times = [0]#,0,0,0]
     clip_num = 0
     num_runs = 1
-    dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=512,
-                                           rgb_label_watermark=True, modalities=["rgb_frames"])
+    dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=16,
+                                           rgb_label_watermark=True, modalities=["rgb_frames"], smallDataset=smallDataset)
 
     clip_num = 100
     clip_data_dict, labels,  vid_idx, frame_pad = dataset[clip_num]

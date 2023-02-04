@@ -72,10 +72,14 @@ def fps_np(points, npoint):
 
     return points[idxs]
 
-def stochastic_vec_sample(vec, stochastic_sample_ratio_inv = 1):
-    target_length = int(len(vec)/stochastic_sample_ratio_inv)
+
+def stochastic_vec_sample_numeric(vec, num_samples = 4096):
     np.random.shuffle(vec)
-    return vec[:target_length]
+    return vec[:num_samples]
+
+def stochastic_vec_sample_proportional(vec, stochastic_sample_ratio_inv = 1):
+    target_length = int(len(vec)/stochastic_sample_ratio_inv)
+    return stochastic_vec_sample_numeric(vec, target_length)
 
 
 def fps_ne(points, npoint, stochastic_sample:bool, stochastic_sample_ratio_inv = 1):
@@ -91,7 +95,7 @@ def fps_ne(points, npoint, stochastic_sample:bool, stochastic_sample_ratio_inv =
     xyz = points
     if stochastic_sample:
         assert len(points)/stochastic_sample_ratio_inv >= npoint
-        xyz = stochastic_vec_sample(xyz, stochastic_sample_ratio_inv)
+        xyz = stochastic_vec_sample_proportional(xyz, stochastic_sample_ratio_inv)
     N, C = xyz.shape
     centroids = np.zeros(npoint)
     distance = np.ones(N) * 1e10

@@ -27,7 +27,7 @@ def createSeperateFurnitureRecLists(dataset_dir):
      if os.path.isdir(os.path.join(dataset_dir, furniture_name)) and furniture_name != "indexing_files"]
 
 
-def createAllIndexingFiles(dataset_dir):
+def createAllIndexingFiles(dataset_dir, smallDataset = False):
     # w_path = Path(dataset_dir)
     indexing_files_path = os.path.join(dataset_dir, "indexing_files")
 
@@ -42,5 +42,7 @@ def createAllIndexingFiles(dataset_dir):
 
 
 if __name__ == "__main__":
-    work_dir = r'C:\HoloLens'
-    createAllIndexingFiles(work_dir)
+    work_dir = r'C:\SmallDataset'
+    smallDataset = "SmallDataset" in work_dir
+    print("SmallDataset: ", smallDataset)
+    createAllIndexingFiles(work_dir, smallDataset=smallDataset)
