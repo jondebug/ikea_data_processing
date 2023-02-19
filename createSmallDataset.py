@@ -192,7 +192,7 @@ def createSmallDataset(src_dataset, target_dataset, furniture_modalities):
             src_norm_long_throw_dir = os.path.join(norm_furniture_rec_dir, "Depth Long Throw")
             target_long_throw_dir = os.path.join(target_furniture_dir, "Depth Long Throw")
             print("starting cpy ply for dir: ", src_norm_long_throw_dir)
-            createFpsRecCpy(src_norm_long_throw_dir, target_dir=target_long_throw_dir)
+            # createFpsRecCpy(src_norm_long_throw_dir, target_dir=target_long_throw_dir)
             src_norm_pv = os.path.join(norm_furniture_rec_dir, "pv")
             target_pv = os.path.join(target_furniture_dir, "pv")
             print("starting cpy pv for dir: ", src_norm_pv)

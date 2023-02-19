@@ -130,7 +130,7 @@ class HololensStreamRecBase():
 
 
 class HololensStreamRecClipDataset(HololensStreamRecBase):
-    def __init__(self, dataset_path, furniture_list: list, action_list_filename='action_list.txt',
+    def __init__(self, dataset_path, furniture_list: list = [], action_list_filename='action_list.txt',
                  train_filename='all_train_dir_list.txt', test_filename='all_train_dir_list.txt', transform=None,
                  gt_annotation_filename='db_gt_annotations.json', modalities=["all"], frame_skip=1, frames_per_clip=32,
                  dataset="train", rgb_label_watermark=False, furniture_mod = ["all"], smallDataset=False):
@@ -164,8 +164,8 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         clip_labels_count =[]
         for i, label in enumerate(self.action_list):
             print((label, self.clip_label_count[i]))
-            if(self.clip_label_count[i]>100000):
-                continue
+            # if(self.clip_label_count[i]>100000):
+                # continue
             labels.append(label)
             clip_labels_count.append(self.clip_label_count[i])
 
@@ -229,8 +229,14 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
                 if action == 'pick up bottom stool step ' : action = 'pick up bottom stool step'
                 if action == 'allign top stool step '  : action = 'allign top stool step'
                 if action == 'flip stool '  : action = 'flip stool'
-
-
+                if action == 'pick up cam lock screw' : action = 'pick up long drawer screw'
+                if action == 'allign cam lock screw' : action = 'allign long drawer screw'
+                if action == 'pick up cam lock connecter ' : action = 'pick up cam lock'
+                if action == 'pick up cam lock connecter' : action = 'pick up cam lock'
+                if action == 'insert cam lock connecter' : action = 'insert cam lock'
+                if action == 'allign cam lock connecter ' : action = 'insert cam lock'
+                if action == 'pick up bottom panel ' : action = 'pick up bottom panel'
+                if action == 'default' : action = 'N/A'
 
                 action_id = self.action_name_to_id_mapping[action]
 

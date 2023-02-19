@@ -198,6 +198,8 @@ def addTextToImg(img_path, txt="null"):
 
 def getNumFrames(_dir_):
     pv_dir = os.path.join(_dir_, "pv")
+    if not os.path.exists(pv_dir):
+        print(f"dir does not exist: {pv_dir}")
     assert os.path.exists(pv_dir)
     return len(os.listdir(pv_dir))
 
