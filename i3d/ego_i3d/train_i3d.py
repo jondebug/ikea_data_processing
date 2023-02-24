@@ -3,6 +3,8 @@
 
 import os
 
+#from torch.utils.tensorboard import SummaryWriter
+
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # os.environ["CUDA_VISIBLE_DEVICES"]='0,1,2,3'
 import sys
@@ -20,14 +22,14 @@ from pytorch_i3d import InceptionI3d
 
 sys.path.append('../../')
 from DataLoader import HololensStreamRecClipDataset
-# from tensorboardX import SummaryWriter
+from tensorboardX import SummaryWriter
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', type=str, default='rgb', help='rgb or flow')
 parser.add_argument('--frame_skip', type=int, default=1, help='reduce fps by skippig frames')
 parser.add_argument('--steps_per_update', type=int, default=20, help='number of steps per backprop update')
-parser.add_argument('--frames_per_clip', type=int, default=64, help='number of frames in a clip sequence')
-parser.add_argument('--batch_size', type=int, default=8, help='number of clips per batch')
+parser.add_argument('--frames_per_clip', type=int, default=32, help='number of frames in a clip sequence')
+parser.add_argument('--batch_size', type=int, default=1, help='number of clips per batch')
 parser.add_argument('--db_filename', type=str, default='ikea_annotation_db_full',
                     help='database file name within dataset path')
 parser.add_argument('--logdir', type=str, default='./log/debug/', help='path to model save dir')
@@ -44,7 +46,7 @@ parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
 args = parser.parse_args()
 
 
-def run(init_lr=0.001, max_steps=64e3, frames_per_clip=16, mode='rgb',
+def run(init_lr=0.001, max_steps=64e3, frames_per_clip=2, mode='rgb',
         dataset_path='C:\SmallDataset',
         train_filename='all_train_dir_list.txt', testset_filename='all_test_dir_list.txt',
         db_filename='../ikea_dataset_frame_labeler/ikea_annotation_db', logdir='',
@@ -61,7 +63,7 @@ def run(init_lr=0.001, max_steps=64e3, frames_per_clip=16, mode='rgb',
     # db_filename = dataset_path + r'\indexing_files\db_gt_annotations.json',  resize=None, mode=load_mode, input_type=input_type
     train_dataset = HololensStreamRecClipDataset(dataset_path, train_filename=train_filename,
                                                  transform=train_transforms, dataset='train', frame_skip=frame_skip,
-                                                 frames_per_clip=frames_per_clip)
+                                                 frames_per_clip=frames_per_clip, modalities=["rgb_frames"])
     print("Number of clips in the dataset:{}".format(len(train_dataset)))
     print(train_dataset.clip_label_count)
     weights = utils.make_weights_for_balanced_classes(train_dataset.clip_set, train_dataset.clip_label_count)
@@ -73,7 +75,8 @@ def run(init_lr=0.001, max_steps=64e3, frames_per_clip=16, mode='rgb',
     # db_filename = dataset_path + r'\indexing_files\db_gt_annotations.json',  resize=None, mode=load_mode, input_type=input_type
     test_dataset = HololensStreamRecClipDataset(dataset_path, train_filename=train_filename,
                                                 test_filename=testset_filename, transform=test_transforms,
-                                                dataset='test', frame_skip=frame_skip, frames_per_clip=frames_per_clip)
+                                                dataset='test', frame_skip=frame_skip, frames_per_clip=frames_per_clip,
+                                                modalities=["rgb_frames"])
 
     test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=True, num_workers=6,
                                                   pin_memory=True)
@@ -81,10 +84,10 @@ def run(init_lr=0.001, max_steps=64e3, frames_per_clip=16, mode='rgb',
     # setup the model
     if mode == 'flow':
         i3d = InceptionI3d(400, in_channels=2)
-        i3d.load_state_dict(torch.load('models/flow_' + pretrained_model + '.pt'))
+        i3d.load_state_dict(torch.load(r'.\pretrained_models\flow_' + pretrained_model + '.pt'))
     else:
         i3d = InceptionI3d(157, in_channels=3)
-        i3d.load_state_dict(torch.load('models/rgb_' + pretrained_model + '.pt'))
+        i3d.load_state_dict(torch.load(r'.\pretrained_models\rgb_' + pretrained_model + '.pt'))
 
     num_classes = train_dataset.num_classes
     i3d.replace_logits(num_classes)
@@ -112,9 +115,9 @@ def run(init_lr=0.001, max_steps=64e3, frames_per_clip=16, mode='rgb',
     optimizer = optim.Adam(i3d.parameters(), lr=lr, weight_decay=1E-6)
     lr_sched = optim.lr_scheduler.MultiStepLR(optimizer, [10, 20, 30, 40])
 
-    if refine:
-        lr_sched.load_state_dict(checkpoint["lr_state_dict"])
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    # if refine:
+    #     lr_sched.load_state_dict(checkpoint["lr_state_dict"])
+    #     optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
     train_writer = SummaryWriter(os.path.join(logdir, 'train'))
     test_writer = SummaryWriter(os.path.join(logdir, 'test'))
@@ -155,12 +158,16 @@ def run(init_lr=0.001, max_steps=64e3, frames_per_clip=16, mode='rgb',
 
             num_iter += 1
             # get the inputs
-            inputs, labels, vid_idx, frame_pad = data
-
+            input_dict, labels, vid_idx, frame_pad = data
+            print(vid_idx, frame_pad)
             # wrap them in Variable
+            inputs = input_dict['rgb_frames'].float()
             inputs = Variable(inputs.cuda(), requires_grad=True)
+            print((batch_size, 3, frames_per_clip, 540, 960))
+            #TODO: change hardcoded numbers
+            inputs = torch.reshape(inputs, (batch_size, 3, frames_per_clip, 540, 960))
             labels = Variable(labels.cuda())
-
+            print(inputs.size)
             t = inputs.size(2)
             per_frame_logits = i3d(inputs)
             per_frame_logits = F.interpolate(per_frame_logits, t, mode='linear', align_corners=True)

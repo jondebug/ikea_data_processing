@@ -35,7 +35,7 @@ class HololensStreamRecBase():
         self.furniture_dirs = [os.path.join(dataset_path, furniture_name) for furniture_name in furniture_list]
 
         for furniture_dir in self.furniture_dirs:
-            print(furniture_dir)
+            #print(furniture_dir)
             assert os.path.exists(furniture_dir)
 
         self.furniture_dir_sizes = [getNumRecordings(_dir_) for _dir_ in self.furniture_dirs]
@@ -52,7 +52,7 @@ class HololensStreamRecBase():
         self.action_list.sort()
         if "N/A" in self.action_list:
             self.action_list.remove("N/A")
-        print(self.action_list)
+        #print(self.action_list)
         self.action_list.insert(0, "N/A")  # 0 label for unlabled frames
         self.num_classes = len(self.action_list)
         self.train_video_list = getListFromFile(self.train_filename)
@@ -63,7 +63,7 @@ class HololensStreamRecBase():
         for action_id, action in enumerate(self.action_list):
             self.action_name_to_id_mapping[action] = action_id
             self.id_to_action_name_mapping[action_id] = action
-        print(self.action_name_to_id_mapping)
+        #print(self.action_name_to_id_mapping)
 
     def __enter__(self):
         return self
@@ -90,7 +90,7 @@ class HololensStreamRecBase():
         else:
             raise ValueError("Invalid dataset name")
 
-        print("using json annotation file {}".format(self.gt_annotation_filename))
+        #print("using json annotation file {}".format(self.gt_annotation_filename))
         # with open(self.gt_annotation_filename) as json_file_obj:
         #     db_gt_annotations = json.load(json_file_obj)
 
@@ -98,7 +98,7 @@ class HololensStreamRecBase():
             row = {"nframes": getNumFrames(_dir_), 'video_path': _dir_}
 
             # if dataset != all:
-            # print(dataset, db_gt_annotations["database"][_dir_]["subset"])
+            # #print(dataset, db_gt_annotations["database"][_dir_]["subset"])
             # assert dataset in db_gt_annotations["database"][_dir_]["subset"]
             video_data_table.append(row)
         return video_data_table
@@ -106,8 +106,8 @@ class HololensStreamRecBase():
     def get_video_annotations_table(self, video_path):
         with open(self.gt_annotation_filename) as json_file_obj:
             db_gt_annotations = json.load(json_file_obj)
-        # print(db_gt_annotations.keys())
-        # print(db_gt_annotations["database"].keys())
+        # #print(db_gt_annotations.keys())
+        # #print(db_gt_annotations["database"].keys())
 
         if video_path in db_gt_annotations["database"].keys():
             return db_gt_annotations["database"][video_path]["annotation"]
@@ -156,7 +156,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
             self.video_list = self.filterFurnitureModalities(self.test_video_list)
         else:
             raise ValueError("Invalid set name")
-        print("got the following video list: ", self.video_list)
+        #print("got the following video list: ", self.video_list)
         self.annotated_videos = self.get_video_frame_labels()
         self.clip_set, self.clip_label_count = self.get_clips()
         # print(self.clip_set)
@@ -275,9 +275,9 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         return clip_dataset, label_count
 
     def getLabelsInClipIdx(self, np_labels):
-        print(np_labels.size)
+        #print(np_labels.size)
         action_strings = [self.id_to_action_name_mapping[np.argmax(np_labels[i])] for i in range(len(np_labels))]
-        print(action_strings)
+        #print(action_strings)
         return action_strings
 
 
@@ -343,12 +343,12 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         # load video file and extract the frames
         np_labels = np.array(labels).T
         frames = []
-        print("frame indices: ", frame_indices)
+        #print("frame indices: ", frame_indices)
         # TODO: only get labels when watermark is necessary
         str_labels = self.getLabelsInClipIdx(np_labels)
         assert (self.rgb_label_watermark and len(labels) > 0) or not self.rgb_label_watermark
         for frame_num in frame_indices:
-            print(frame_num)
+            #print(frame_num)
             if self.smallDataset:
                 rgb_frame_full_path = os.path.join(rec_dir, "norm", "pv", "{}.png".format(frame_num))
             else:
@@ -362,9 +362,9 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
                 frame = torch.Tensor(torchvision.io.read_image(rgb_frame_full_path))
             frames.append(frame)
 
-        print(len(frames), len(frames[0]), len(frames[0][0]), len(frames[0][0][0]))
+        #print(len(frames), len(frames[0]), len(frames[0][0]), len(frames[0][0][0]))
         frames = torch.stack(frames)
-        print(frames.shape)
+        #print(frames.shape)
         return frames
 
     #
@@ -387,12 +387,12 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
     def __getitem__(self, index):
         # 'Generate one sample of data'
         recording_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad = self.clip_set[index]
-        print(labels)
+        #print(labels)
         # return video_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad
-        print(f"getting clip from recording {recording_full_path}")
+        #print(f"getting clip from recording {recording_full_path}")
         clip_modalities_dict = {}
         if self.modalities == ["all"]:
-            print("returning all modalities")
+            #print("returning all modalities")
             #TODO: remove labels argument from load_rgb_frames
             clip_modalities_dict["rgb_frames"] = self.load_rgb_frames(recording_full_path, frame_ind, labels)
             clip_modalities_dict["depth_frames"] = self.load_depth_frames(recording_full_path, frame_ind)
@@ -407,6 +407,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         for mod in self.modalities:
             if mod == "rgb_frames":
                 clip_modalities_dict["rgb_frames"] = self.load_rgb_frames(recording_full_path, frame_ind, labels)
+                # return clip_modalities_dict["rgb_frames"], torch.from_numpy(labels), vid_idx, frame_pad
             elif mod == "point_clouds":
                 clip_modalities_dict["point_clouds"] = self.load_point_clouds_2(recording_full_path, frame_ind)
             elif mod == "depth_frames":
