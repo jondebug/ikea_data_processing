@@ -4,12 +4,16 @@ import pathlib
 import matplotlib.pyplot as plt
 
 import cv2
+from torchvision import transforms
+import i3d.ego_i3d.videotransforms
 import timeit
 import numpy as np
 import os
 import torchvision
 import torch
 import matplotlib.pyplot as plt
+
+from i3d.ego_i3d import videotransforms
 from utils import getNumRecordings, getListFromFile, getNumFrames, saveVideoClip, addTextToImg, read16BitPGM, imread_pgm
 import json
 import plotly.express as px
@@ -20,14 +24,14 @@ class HololensStreamRecBase():
     """Face Landmarks dataset."""
 
     def __init__(self, dataset_path, furniture_list: list, action_list_filename='action_list.txt',
-                 train_filename='all_train_dir_list.txt', test_filename='all_train_dir_list.txt', transform=None,
+                 train_filename='all_train_dir_list.txt', test_filename='all_test_dir_list.txt', rgb_transform=None,
                  gt_annotation_filename='db_gt_annotations.json'):
         """
         Args:
             action_list_filename (string): Path to the csv file with annotations.
             dataset_path (string): Root directory with all the data.
             furniture_list = list of strings containing names of furniture assembled in dataset.
-            transform (callable, optional): Optional transform to be applied
+            rgb_transform (callable, optional): Optional rgb_transform to be applied
             on a sample.
         """
 
@@ -48,7 +52,9 @@ class HololensStreamRecBase():
         self.test_filename = os.path.join(dataset_path, 'indexing_files', test_filename)
 
         # load lists from files:
+        print(f"getting actions from file: {self.action_list_filename}")
         self.action_list = getListFromFile(self.action_list_filename)
+        print(f"got action list:{self.action_list}")
         self.action_list.sort()
         if "N/A" in self.action_list:
             self.action_list.remove("N/A")
@@ -83,10 +89,13 @@ class HololensStreamRecBase():
         video_data_table = []
         if dataset == "all":
             rec_list = self.all_video_list
+            # return  self.all_video_list
         elif dataset == "train":
             rec_list = self.train_video_list
+            # return self.train_video_list
         elif dataset == "test":
             rec_list = self.test_video_list
+            # return self.test_video_list
         else:
             raise ValueError("Invalid dataset name")
 
@@ -95,7 +104,8 @@ class HololensStreamRecBase():
         #     db_gt_annotations = json.load(json_file_obj)
 
         for _dir_ in rec_list:
-            row = {"nframes": getNumFrames(_dir_), 'video_path': _dir_}
+            # _dir_ = os.path.join(self.dataset_root_path, _dir_)
+            row = {"nframes": getNumFrames(os.path.join(self.dataset_root_path, _dir_)), 'video_path': _dir_}
 
             # if dataset != all:
             # #print(dataset, db_gt_annotations["database"][_dir_]["subset"])
@@ -131,12 +141,12 @@ class HololensStreamRecBase():
 
 class HololensStreamRecClipDataset(HololensStreamRecBase):
     def __init__(self, dataset_path, furniture_list: list = [], action_list_filename='action_list.txt',
-                 train_filename='all_train_dir_list.txt', test_filename='all_train_dir_list.txt', transform=None,
+                 train_filename='all_train_dir_list.txt', test_filename='all_test_dir_list.txt', rgb_transform=None,
                  gt_annotation_filename='db_gt_annotations.json', modalities=["all"], frame_skip=1, frames_per_clip=32,
                  dataset="train", rgb_label_watermark=False, furniture_mod = ["all"], smallDataset=False):
 
         super().__init__(dataset_path, furniture_list, action_list_filename,
-                         train_filename, test_filename, transform, gt_annotation_filename)
+                         train_filename, test_filename, rgb_transform, gt_annotation_filename)
 
         # self.camera = camera
         # self.resize = resize
@@ -145,7 +155,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         self.furniture_mod = furniture_mod
         self.rgb_label_watermark = rgb_label_watermark
         self.modalities = modalities
-        self.transform = transform
+        self.rgb_transform = rgb_transform
         self.set = dataset
         self.frame_skip = frame_skip
         self.frames_per_clip = frames_per_clip
@@ -159,6 +169,8 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         #print("got the following video list: ", self.video_list)
         self.annotated_videos = self.get_video_frame_labels()
         self.clip_set, self.clip_label_count = self.get_clips()
+        self.action_labels = [vid_data[1].transpose() for vid_data in self.annotated_videos ]
+
         # print(self.clip_set)
         labels =[]
         clip_labels_count =[]
@@ -237,7 +249,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
                 if action == 'allign cam lock connecter ' : action = 'insert cam lock'
                 if action == 'pick up bottom panel ' : action = 'pick up bottom panel'
                 if action == 'default' : action = 'N/A'
-
+                if action == 'flip whole table' : action = 'flip whole coffee table' #Merge these two labels.
                 action_id = self.action_name_to_id_mapping[action]
 
                 # object_id = ann_row["object_id"]
@@ -285,7 +297,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         frames = []
         for counter in frame_indices:
             target_points = torch.zeros(92160, 9)
-            if self.smallDataset:
+            if not self.smallDataset:
                 point_cloud_full_path = os.path.join(rec_dir, "norm", "Depth Long Throw", "{}.ply".format(i))
             else:
                 point_cloud_full_path = os.path.join(rec_dir, "Depth Long Throw", "{}.ply".format(i))
@@ -301,7 +313,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
     def load_point_clouds(self, rec_dir, frame_indices):
         point_clouds = []
         for index in frame_indices:
-            if self.smallDataset:
+            if not self.smallDataset:
                 point_cloud_full_path = os.path.join(rec_dir, "norm", "Depth Long Throw", "{}.ply".format(index))
             else:
                 point_cloud_full_path = os.path.join(rec_dir, "Depth Long Throw", "{}.ply".format(index))
@@ -316,7 +328,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         return torch.stack(point_clouds)
 
     def load_data_frames_from_csv(self, rec_dir, frame_indices, filename):
-        if self.smallDataset:
+        if not self.smallDataset:
             full_rec_csv_path = os.path.join(rec_dir, "norm", filename)
         else:
             full_rec_csv_path = os.path.join(rec_dir, filename)
@@ -329,7 +341,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
     def load_depth_frames(self, rec_dir, frame_indices):
         depth_frames = []
         for index in frame_indices:
-            if self.smallDataset:
+            if not self.smallDataset:
                 depth_frame_full_path = os.path.join(rec_dir, "norm", "Depth Long Throw", "{}.pgm".format(index))
             else:
                 depth_frame_full_path = os.path.join(rec_dir, "Depth Long Throw", "{}.pgm".format(index))
@@ -349,7 +361,8 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         assert (self.rgb_label_watermark and len(labels) > 0) or not self.rgb_label_watermark
         for frame_num in frame_indices:
             #print(frame_num)
-            if self.smallDataset:
+            if not self.smallDataset:
+
                 rgb_frame_full_path = os.path.join(rec_dir, "norm", "pv", "{}.png".format(frame_num))
             else:
                 rgb_frame_full_path = os.path.join(rec_dir, "pv", "{}.png".format(frame_num))
@@ -363,8 +376,14 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
             frames.append(frame)
 
         #print(len(frames), len(frames[0]), len(frames[0][0]), len(frames[0][0][0]))
-        frames = torch.stack(frames)
-        #print(frames.shape)
+        frames =torch.stack(frames)
+        # (t,h,w,c)
+        if self.rgb_transform is not None:
+            #TODO: apply transform iteratively to frames
+            frames = torch.permute(frames, (0, 2, 3, 1))
+            frames = self.rgb_transform(frames)
+            frames = torch.permute(frames, (0, 3, 1, 2))
+
         return frames
 
     #
@@ -387,6 +406,8 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
     def __getitem__(self, index):
         # 'Generate one sample of data'
         recording_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad = self.clip_set[index]
+        recording_full_path = os.path.join(self.dataset_root_path, recording_full_path)
+
         #print(labels)
         # return video_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad
         #print(f"getting clip from recording {recording_full_path}")
@@ -427,21 +448,33 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
 
 
 if __name__ == "__main__":
-    dataset_path = r'C:\SmallDataset'
-    smallDataset = "SmallDataset" in dataset_path
+    # dataset_path = r'C:\TinyDataset'
+    dataset_path = r'D:\HoloLens'
+    smallDataset = "SmallDataset" in dataset_path or 'Tiny' in dataset_path
     print("SmallDataset: ", smallDataset)
     furniture_list = ["Stool"]
-    frames_per_clip_list = [8, 16, 32, 64]
+    # frames_per_clip_list = [8, 16, 32, 64]
     # frames_per_clip_list = [8]#,16,32,64]
     run_times = [0, 0, 0, 0]
     # run_times = [0]#,0,0,0]
     clip_num = 0
-    num_runs = 1
-    dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=16,
-                                           rgb_label_watermark=True, modalities=["rgb_frames"], smallDataset=smallDataset)
+    num_runs = 10
+    train_transforms = videotransforms.RandomCrop((224, 224)) #videotransforms.RandomCrop((224, 224))
+    train_transforms = None
+    dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=1024,
+                                           rgb_label_watermark=True, modalities=["rgb_frames"], smallDataset=smallDataset, rgb_transform=train_transforms)
 
-    clip_num = 100
-    clip_data_dict, labels,  vid_idx, frame_pad = dataset[clip_num]
+    clip_num = 5
+
+    # start = timeit.default_timer()
+    # for run in range(num_runs):
+    #     clip_data_dict, labels,  vid_idx, frame_pad = dataset[clip_num+run]
+    # stop = timeit.default_timer()
+    # print(clip_data_dict["rgb_frames"].shape)
+    # print("total avg load time: ", (stop - start)/num_runs)
+    # exit()
+
+    clip_data_dict, labels, vid_idx, frame_pad = dataset[clip_num]
     print(clip_data_dict, labels)
     clip_frames = clip_data_dict["rgb_frames"]
     vid_clip_name = r"D:\loaded_clips\clip_{}.avi".format(clip_num)
@@ -451,12 +484,8 @@ if __name__ == "__main__":
         for i, frames_per_clip in enumerate(frames_per_clip_list):
             dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=frames_per_clip,
                                                    rgb_label_watermark=False, modalities=["depth_frames"])
-            start = timeit.default_timer()
             clip_data_dict, labels, vid_idx, frame_pad = dataset[clip_num]
-            stop = timeit.default_timer()
-            run_times[i] += (stop-start)/num_runs
-            print(stop-start)
-    print(run_times)
+
 
     fig = plt.figure(figsize=(12, 8))
     ax = fig.add_subplot(111)

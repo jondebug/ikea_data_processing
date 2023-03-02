@@ -203,8 +203,10 @@ def getNumFrames(_dir_):
     assert os.path.exists(pv_dir)
     return len(os.listdir(pv_dir))
 
-def searchForAnnotationJson(_dir_):
+def searchForAnnotationJson(_dir_, dataset_dir):
+    _dir_ = os.path.join(dataset_dir, _dir_)
     for sub_dir in os.listdir(_dir_):
+        # sub_dir = os.path.join(dataset_dir, sub_dir)
         # print("lets look at {}".format(sub_dir))
         if "annotations.json" in sub_dir[-16:]:
             # print("found {}".format(sub_dir))
@@ -279,17 +281,17 @@ def decodeJsonAnnotations(current_json_annotation: dict, fps_error_correction_ma
     return action_labels
 
 
-def getAllJsonsInDirList(dir_list, merged_json, subset):
+def getAllJsonsInDirList(dir_list, merged_json, subset, dataset_dir):
     assert subset == "training" or subset == "testing"
     for _dir_ in dir_list:
-        json_file = searchForAnnotationJson(_dir_)
+        json_file = searchForAnnotationJson(_dir_, dataset_dir)
         if json_file:
             print("found json file {}".format(json_file))
             with open(json_file) as json_file_obj:
                 current_json = json.load(json_file_obj)
                 # add error check if json file already exists in database
                 fps_error_correction_mapping = None
-                fps_error_correction_json_path = os.path.join(_dir_, "frame_rate_translation.json")
+                fps_error_correction_json_path = os.path.join(os.path.join(dataset_dir, _dir_), "frame_rate_translation.json")
                 if os.path.exists(fps_error_correction_json_path):
                     with open(fps_error_correction_json_path) as fps_error_correction_obj:
                         fps_error_correction_mapping = json.load(fps_error_correction_obj)
@@ -315,8 +317,8 @@ def getAllJsonAnnotations(dataset_dir, merged_json=None):
     assert os.path.exists(test_dir_list_file) and os.path.exists(train_dir_list_file)
     test_dir_list = getListFromFile(test_dir_list_file)
     train_dir_list = getListFromFile(train_dir_list_file)
-    getAllJsonsInDirList(test_dir_list, merged_json, "testing")
-    getAllJsonsInDirList(train_dir_list, merged_json, "training")
+    getAllJsonsInDirList(test_dir_list, merged_json, "testing", dataset_dir)
+    getAllJsonsInDirList(train_dir_list, merged_json, "training", dataset_dir)
     print(merged_json)
 
     with open(os.path.join(dataset_dir, "indexing_files", "db_gt_annotations.json"), "w") as new_json_file_obj:
@@ -333,6 +335,8 @@ def writeListToFile(filename, line_list):
             f.writelines(line + "\n")
     return
 
+def makeDirListAbs(abs_parent_dir, rel_dir_list):
+    return [os.path.join(abs_parent_dir, rel_dir) for rel_dir in rel_dir_list if abs_parent_dir not in rel_dir]
 
 def getListFromFile(filename):
     """

@@ -19,22 +19,25 @@ from torchvision import transforms
 import videotransforms
 import numpy as np
 from pytorch_i3d import InceptionI3d
+import torchvision
 
 sys.path.append('../../')
 from DataLoader import HololensStreamRecClipDataset
 from tensorboardX import SummaryWriter
+#import W&B
+# from PIL import Image
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', type=str, default='rgb', help='rgb or flow')
 parser.add_argument('--frame_skip', type=int, default=1, help='reduce fps by skippig frames')
-parser.add_argument('--steps_per_update', type=int, default=20, help='number of steps per backprop update')
+parser.add_argument('--steps_per_update', type=int, default=10, help='number of steps per backprop update')
 parser.add_argument('--frames_per_clip', type=int, default=32, help='number of frames in a clip sequence')
-parser.add_argument('--batch_size', type=int, default=1, help='number of clips per batch')
+parser.add_argument('--batch_size', type=int, default=16, help='number of clips per batch')
 parser.add_argument('--db_filename', type=str, default='ikea_annotation_db_full',
                     help='database file name within dataset path')
 parser.add_argument('--logdir', type=str, default='./log/debug/', help='path to model save dir')
 parser.add_argument('--dataset_path', type=str,
-                    default=r'C:\SmallDataset', help='path to dataset')
+                    default=r'C:\TinyDataset', help='path to dataset')
 parser.add_argument('--load_mode', type=str, default='img', help='dataset loader mode to load videos or images: '
                                                                  'vid | img')
 parser.add_argument('--camera', type=str, default='dev2', help='dataset camera view: dev1 | dev2 | dev3 ')
@@ -47,7 +50,7 @@ args = parser.parse_args()
 
 
 def run(init_lr=0.001, max_steps=64e3, frames_per_clip=2, mode='rgb',
-        dataset_path='C:\SmallDataset',
+        dataset_path='C:\TinyDataset',
         train_filename='all_train_dir_list.txt', testset_filename='all_test_dir_list.txt',
         db_filename='../ikea_dataset_frame_labeler/ikea_annotation_db', logdir='',
         frame_skip=1, batch_size=8, camera='dev3', refine=False, refine_epoch=0, load_mode='vid',
@@ -55,30 +58,35 @@ def run(init_lr=0.001, max_steps=64e3, frames_per_clip=2, mode='rgb',
     os.makedirs(logdir, exist_ok=True)
 
     # setup dataset
-    train_transforms = transforms.Compose([videotransforms.RandomCrop(224),
+    train_transforms_horizontal_flip = transforms.Compose([videotransforms.RandomCrop(224),
                                            videotransforms.RandomHorizontalFlip(),
                                            ])
-    test_transforms = transforms.Compose([videotransforms.CenterCrop(224)])
+    train_transforms = videotransforms.RandomCrop((224, 224)) #videotransforms.RandomCrop((224, 224))
+    test_transforms = videotransforms.CenterCrop([224, 224])
 
     # db_filename = dataset_path + r'\indexing_files\db_gt_annotations.json',  resize=None, mode=load_mode, input_type=input_type
+    #TODO: change resize to larger resize and the random crop
+    # resize_trans = torchvision.transforms.Resize((224, 224))
+    # resize_trans = torchvision.transforms.RandomCrop((224, 224))
+
     train_dataset = HololensStreamRecClipDataset(dataset_path, train_filename=train_filename,
-                                                 transform=train_transforms, dataset='train', frame_skip=frame_skip,
-                                                 frames_per_clip=frames_per_clip, modalities=["rgb_frames"])
+                                                 rgb_transform=train_transforms, dataset='train', frame_skip=frame_skip,
+                                                 frames_per_clip=frames_per_clip, modalities=["rgb_frames"], smallDataset=True)
     print("Number of clips in the dataset:{}".format(len(train_dataset)))
-    print(train_dataset.clip_label_count)
+    # print(train_dataset.clip_label_count)
     weights = utils.make_weights_for_balanced_classes(train_dataset.clip_set, train_dataset.clip_label_count)
     sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, len(weights))
 
     train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, sampler=sampler,
-                                                   num_workers=6, pin_memory=True)
+                                                   num_workers=0, pin_memory=True)
 
     # db_filename = dataset_path + r'\indexing_files\db_gt_annotations.json',  resize=None, mode=load_mode, input_type=input_type
     test_dataset = HololensStreamRecClipDataset(dataset_path, train_filename=train_filename,
-                                                test_filename=testset_filename, transform=test_transforms,
+                                                test_filename=testset_filename, rgb_transform=test_transforms,
                                                 dataset='test', frame_skip=frame_skip, frames_per_clip=frames_per_clip,
-                                                modalities=["rgb_frames"])
+                                                modalities=["rgb_frames"], smallDataset=True)
 
-    test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=True, num_workers=6,
+    test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=True, num_workers=0,
                                                   pin_memory=True)
 
     # setup the model
@@ -165,7 +173,9 @@ def run(init_lr=0.001, max_steps=64e3, frames_per_clip=2, mode='rgb',
             inputs = Variable(inputs.cuda(), requires_grad=True)
             print((batch_size, 3, frames_per_clip, 540, 960))
             #TODO: change hardcoded numbers
-            inputs = torch.reshape(inputs, (batch_size, 3, frames_per_clip, 540, 960))
+            # inputs = torch.reshape(inputs, (batch_size, 3, frames_per_clip, 540, 960))
+            # inputs = torch.reshape(inputs, (batch_size, 3, frames_per_clip, 224, 224))
+            inputs = torch.permute(inputs, (0, 2, 1, 3, 4))
             labels = Variable(labels.cuda())
             print(inputs.size)
             t = inputs.size(2)
@@ -212,13 +222,16 @@ def run(init_lr=0.001, max_steps=64e3, frames_per_clip=2, mode='rgb',
             if test_fraction_done <= train_fraction_done and test_batchind + 1 < test_num_batch:
                 i3d.train(False)  # Set model to evaluate mode
                 test_batchind, data = next(test_enum)
-                inputs, labels, vid_idx, frame_pad = data
+                input_dict, labels, vid_idx, frame_pad = data
 
                 # wrap them in Variable
+                inputs = input_dict['rgb_frames'].float()
                 inputs = Variable(inputs.cuda(), requires_grad=True)
                 labels = Variable(labels.cuda())
 
                 with torch.no_grad():
+                    inputs = torch.permute(inputs, (0, 2, 1, 3, 4))
+
                     per_frame_logits = i3d(inputs)
                     per_frame_logits = F.interpolate(per_frame_logits, t, mode='linear', align_corners=True)
 
@@ -257,6 +270,7 @@ if __name__ == '__main__':
     # need to add argparse
     print("Starting training ...")
     print("Using data from {}".format(args.camera))
+    print(args.dataset_path)
     run(init_lr=args.lr, mode=args.mode, dataset_path=args.dataset_path, logdir=args.logdir,
         frame_skip=args.frame_skip, db_filename=args.db_filename, batch_size=args.batch_size, camera=args.camera,
         refine=args.refine, refine_epoch=args.refine_epoch, load_mode=args.load_mode, input_type=args.input_type,

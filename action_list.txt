@@ -6,10 +6,8 @@ pick up bottom panel
 slide bottom panel
 insert cam lock
 pick up cam lock
-pick up coffee tabletop main
 flip coffee tabletop main
 allign coffee tabletop secondary
-flip coffee tabletop secondary
 lay down coffee tabletop secondary
 pick up coffee tabletop secondary
 pick up drawer knob
@@ -18,7 +16,6 @@ allign drawer knob screw
 pick up drawer knob screw
 allign elbow connector
 pick up elbow connector
-lay down front panel
 pick up front panel
 allign leg
 flip leg
@@ -33,19 +30,14 @@ insert pin (wood peg)
 pick up pin (wood peg)
 pick up screwdriver
 lay down screwdriver
-lay down leg
 spin screwdriver
-allign side panel
 attach side panel
 pick up side panel
-turn side panel
 allign small screw
 pick up small screw
 flip table top
-pick up table top
 flip whole coffee table
 flip whole drawer
-flip whole table
 pick up stool side
 pick up stool screw
 allign stool beam
@@ -56,9 +48,7 @@ lay down drill
 lay down stool beam
 pick up stool beam
 pick up bottom stool step
-turn bottom stool step
 attach stool side
-lay down stool side
 lay down stool screw
 flip stool
 move top stool step

@@ -11,16 +11,16 @@ import sys
 from joblib import Parallel, delayed
 import multiprocessing
 
-
-
-def cpyTxtFiles(src_norm_dir, target_dir):
+def cpyTxtFiles(src_norm_dir, target_dir, smallDataset):
     #copy json, eye_data, hand_data, combined_eye_hand data
     assert os.path.exists(src_norm_dir)
-    w_src_orig_path = Path(src_norm_dir).parent
-    #print("searching path for json: ", w_src_orig_path)
+    w_src_orig_path = Path(src_norm_dir)
+    if not smallDataset:
+        w_src_orig_path.parent
     json_annotation_file = searchForAnnotationJson(str(w_src_orig_path))
     if not json_annotation_file:
-        return
+        print(f"could not find json in {str(w_src_orig_path)}")
+        assert False
     annotation_file_name = json_annotation_file.split("\\")[-1]
     assert os.path.exists(json_annotation_file)
     #print("found json annotation file: ", json_annotation_file, "named: ", annotation_file_name)
@@ -30,7 +30,7 @@ def cpyTxtFiles(src_norm_dir, target_dir):
                      (os.path.join(src_norm_dir, "norm_proc_hand_data.csv"), "norm_proc_hand_data.csv")
                      ]
     if not os.path.exists(target_dir):
-        #print("making target dir: ", target_dir)
+        print("making target dir: ", target_dir)
         os.makedirs(target_dir)
 
     for src_file, filename in src_file_list:
@@ -170,35 +170,43 @@ def createFpsRecCpy(long_throw_dir, target_dir, num_fps_points = 4096):
 
 
 
-def createSmallDataset(src_dataset, target_dataset, furniture_modalities):
+def createSmallDataset(src_dataset, target_dataset, furniture_modalities, small_src_dataset=True):
 
 
     #print(src_dataset[-8:], target_dataset[-12:], 'HoloLens', target_dataset[-13:] == 'SmallDataset',
           # src_dataset[-8:] == 'HoloLens', )
-    assert target_dataset[-12:] == 'SmallDataset'
-    assert src_dataset[-8:] == 'HoloLens'
+    # assert target_dataset[-12:] == 'TinyDataset'
+    # assert src_dataset[-8:] == 'HoloLens'
 
     for furniture_name in furniture_modalities:
         furniture_src_dir = os.path.join(src_dataset, furniture_name)
         furniture_target_dir = os.path.join(target_dataset, furniture_name)
+        reg_furniture_rec_list = [os.path.join(furniture_src_dir, _dir)for _dir in os.listdir(furniture_src_dir)
+                             if "_recDir" in _dir]
         norm_furniture_rec_list = [os.path.join(furniture_src_dir, _dir, "norm")for _dir in os.listdir(furniture_src_dir)
                              if "_recDir" in _dir]
         target_furniture_rec_list = [os.path.join(furniture_target_dir, _dir)for _dir in os.listdir(furniture_src_dir)
                              if "_recDir" in _dir]
-        for target_furniture_dir, norm_furniture_rec_dir in zip(target_furniture_rec_list, norm_furniture_rec_list):
-            if not os.path.exists(norm_furniture_rec_dir):
+
+        if small_src_dataset:
+            furniture_src_rec_list = reg_furniture_rec_list
+        else:
+            furniture_src_rec_list = norm_furniture_rec_list
+
+        for target_furniture_dir, src_furniture_rec_dir in zip(target_furniture_rec_list, furniture_src_rec_list):
+            if not os.path.exists(src_furniture_rec_dir):
                 #print(norm_furniture_rec_dir)
                 assert False
-            src_norm_long_throw_dir = os.path.join(norm_furniture_rec_dir, "Depth Long Throw")
-            target_long_throw_dir = os.path.join(target_furniture_dir, "Depth Long Throw")
-            print("starting cpy ply for dir: ", src_norm_long_throw_dir)
+            # src_norm_long_throw_dir = os.path.join(norm_furniture_rec_dir, "Depth Long Throw")
+            # target_long_throw_dir = os.path.join(target_furniture_dir, "Depth Long Throw")
+            # print("starting cpy ply for dir: ", src_norm_long_throw_dir)
             # createFpsRecCpy(src_norm_long_throw_dir, target_dir=target_long_throw_dir)
-            src_norm_pv = os.path.join(norm_furniture_rec_dir, "pv")
-            target_pv = os.path.join(target_furniture_dir, "pv")
-            print("starting cpy pv for dir: ", src_norm_pv)
-            cpyPvFiles(src_norm_pv, target_pv)
-            print("starting cpy txt files for dir: ", norm_furniture_rec_dir)
-            cpyTxtFiles(norm_furniture_rec_dir, target_furniture_dir)
+            # src_norm_pv = os.path.join(norm_furniture_rec_dir, "pv")
+            # target_pv = os.path.join(target_furniture_dir, "pv")
+            # print("starting cpy pv for dir: ", src_norm_pv)
+            # cpyPvFiles(src_norm_pv, target_pv)
+            print("starting cpy txt files from dir: ", src_furniture_rec_dir, "to: ", target_furniture_dir)
+            cpyTxtFiles(src_furniture_rec_dir, target_furniture_dir, small_src_dataset)
             # return
         # #print(furniture_rec_list)
 
@@ -212,8 +220,8 @@ if __name__ == '__main__':
     # assert mod in furniture_modalities
     #print(platform.platform())
     if "Windows" in platform.platform():
-        src_dataset = r'D:\HoloLens'
-        target_dataset = r'C:\SmallDataset'
+        src_dataset = r'C:\SmallDataset'
+        target_dataset = r'C:\TinyDataset'
     else:
         #linux:
         target_dataset = r'/mnt/c/SmallDataset'

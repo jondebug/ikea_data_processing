@@ -33,16 +33,17 @@ def createAllIndexingFiles(dataset_dir, smallDataset = False):
 
     if not os.path.exists(indexing_files_path): os.mkdir(indexing_files_path)
 
-    recording_dir_list_path = os.path.join(indexing_files_path, "all_recording_dir_list.txt")
-    createAllRecordingDirList(dataset_dir=dataset_dir, target_file=recording_dir_list_path)
-    createSeperateFurnitureRecLists(dataset_dir)
-    createTrainTestFiles(dataset_dir=dataset_dir)
-    copyActionList(dataset_dir=dataset_dir)
+    # recording_dir_list_path = os.path.join(indexing_files_path, "all_recording_dir_list.txt")
+    # createAllRecordingDirList(dataset_dir=dataset_dir, target_file=recording_dir_list_path)
+    # createSeperateFurnitureRecLists(dataset_dir)
+    # createTrainTestFiles(dataset_dir=dataset_dir)
+    # copyActionList(dataset_dir=dataset_dir)
     createAnnotationJson(dataset_dir=dataset_dir)
 
 
 if __name__ == "__main__":
-    work_dir = r'C:\SmallDataset'
-    smallDataset = "SmallDataset" in work_dir
+    # work_dir = r'C:\TinyDataset'
+    work_dir = r'D:\HoloLens'
+    smallDataset = "SmallDataset" in work_dir or "Tiny" in work_dir
     print("SmallDataset: ", smallDataset)
     createAllIndexingFiles(work_dir, smallDataset=smallDataset)
