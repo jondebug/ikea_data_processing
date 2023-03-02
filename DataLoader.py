@@ -12,6 +12,7 @@ import os
 import torchvision
 import torch
 import matplotlib.pyplot as plt
+import tensorflow as tf
 
 from i3d.ego_i3d import videotransforms
 from utils import getNumRecordings, getListFromFile, getNumFrames, saveVideoClip, addTextToImg, read16BitPGM, imread_pgm
@@ -20,6 +21,71 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 import plyfile
+import pickle
+from torch.utils.data import Dataset
+
+class IKEAEgoDatasetPickleClips(Dataset):
+    """
+    IKEA Action Dataset class with pre-saved clips into pickles
+    """
+
+    def __init__(self, dataset_path, set, train_trans, test_trans):
+        #TODO add support for point cloud downsampling using FPS and random sampling
+        self.dataset_path = dataset_path
+        self.set = set
+        self.files_path = os.path.join(dataset_path, set)
+        self.file_list = self.absolute_file_paths(self.files_path)
+        self.file_list.sort()
+        self.rgb_transform = train_trans if set == 'train' else test_trans
+        # backwards compatibility
+        with open(os.path.join(self.dataset_path, set+'_aux.pickle'), 'rb') as f:
+            aux_data = pickle.load(f)
+        self.clip_set = aux_data['clip_set']
+        self.clip_label_count = aux_data['clip_label_count']
+        self.num_classes = aux_data['num_classes']
+        self.video_list = aux_data['video_list']
+        self.action_list = aux_data['action_list']
+        self.frames_per_clip = aux_data['frames_per_clip']
+        self.action_labels = aux_data['action_labels']
+        print("{}set contains {} clips".format(set, len(self.file_list)))
+
+    def absolute_file_paths(self, directory):
+        path = os.path.abspath(directory)
+        return [entry.path for entry in os.scandir(path) if entry.is_file()]
+
+    def transform_rgb_frames(self, data):
+        rgb_frames = data['inputs']
+        frames = torch.from_numpy(rgb_frames)
+
+        # frames =tf.convert_to_tensor(rgb_frames)
+        # (t,h,w,c)
+        if self.rgb_transform is not None:
+            #TODO: apply transform iteratively to frames
+            transformed_frames = torch.permute(frames, (0, 2, 3, 1))
+            transformed_frames = self.rgb_transform(transformed_frames)
+            transformed_frames = torch.permute(transformed_frames, (0, 3, 1, 2))
+
+        data['inputs'] = transformed_frames
+        return data
+
+    def get_dataset_statistics(self):
+        label_count = np.zeros(len(self.action_list))
+        for i in range(len(self.file_list)):
+            data = self.__getitem__(i)
+            label_count = label_count + data[1].sum(-1)
+        return label_count
+
+    def __len__(self):
+        return len(self.file_list)
+
+    def __getitem__(self, index):
+        with open(self.file_list[index], 'rb') as f:
+            data = pickle.load(f)
+        data = self.transform_rgb_frames(data)
+        # data['inputs'] = np.concatenate([data['inputs'][:, 0:3], data['inputs'][:, 6:9], data['inputs'][:, 3:6]], axis=1) # reorder to be xyzRGBNxNyNz
+        return {"rgb_frames": data['inputs']}, data['labels'], data['vid_idx'], data['frame_pad']
+
+
 class HololensStreamRecBase():
     """Face Landmarks dataset."""
 
@@ -80,7 +146,7 @@ class HololensStreamRecBase():
     def __len__(self):
         return
 
-    def get_video_info_table(self, dataset='all'):
+    def get_video_info_table(self, dataset):
         """
         fetch the annotated videos table from the database
         :param : device: string ['all', 'dev1', 'dev2', 'dev3']
@@ -201,7 +267,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
     def get_video_frame_labels(self):
         # Extract the label data from the database
         # outputs a dataset structure of (video_path, multi-label per-frame, number of frames in the video)
-        video_info_table = self.get_video_info_table()
+        video_info_table = self.get_video_info_table(self.set)
         vid_list = []
 
         for row in video_info_table:
@@ -366,7 +432,8 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
                 rgb_frame_full_path = os.path.join(rec_dir, "norm", "pv", "{}.png".format(frame_num))
             else:
                 rgb_frame_full_path = os.path.join(rec_dir, "pv", "{}.png".format(frame_num))
-
+            if not os.path.exists(rgb_frame_full_path):
+                print(f"rgb frame path does not exist: {rgb_frame_full_path} ")
             assert os.path.exists(rgb_frame_full_path)
             if self.rgb_label_watermark:
                 frame = addTextToImg(rgb_frame_full_path, str_labels[frame_num - frame_indices[0]] + f", {frame_num}")
@@ -448,7 +515,24 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
 
 
 if __name__ == "__main__":
+
+    dataset_path = r'C:\TinyPickleDataset'
+    smallDataset = "SmallDataset" in dataset_path or 'Tiny' in dataset_path
+    print("SmallDataset: ", smallDataset)
+    train_transforms = videotransforms.RandomCrop((224, 224)) #videotransforms.RandomCrop((224, 224))
+    test_transforms = videotransforms.CenterCrop((224, 224)) #videotransforms.RandomCrop((224, 224))
+    dataset = IKEAEgoDatasetPickleClips(dataset_path=dataset_path, train_trans=train_transforms, test_trans=test_transforms,
+                                  set='train')
+
+    clip_num = 5
+    clip_data_dict, labels, vid_idx, frame_pad = dataset[clip_num]
+    print(clip_data_dict, labels)
+
+
+    exit()
+
     # dataset_path = r'C:\TinyDataset'
+
     dataset_path = r'D:\HoloLens'
     smallDataset = "SmallDataset" in dataset_path or 'Tiny' in dataset_path
     print("SmallDataset: ", smallDataset)

@@ -1,4 +1,6 @@
 import sys
+from shutil import copyfile
+
 sys.path.append('../')
 import i3d_utils as utils
 import torch
@@ -12,7 +14,7 @@ parser.add_argument('--dataset_path', type=str, default=r'C:\TinyDataset',
                     help='path to tiny rgb sataset')
 parser.add_argument('--output_dataset_dir', type=str, default=r'C:\TinyPickleDataset',
                     help='path to the output directory where the new model will be saved')
-parser.add_argument('--frames_per_clip', type=int, default=32,  help='number of frames in each clip')
+parser.add_argument('--frames_per_clip', type=int, default=16,  help='number of frames in each clip')
 args = parser.parse_args()
 
 dataset_path = args.dataset_path
@@ -29,9 +31,13 @@ for subset in subsets:
     outdir = os.path.join(output_dataset_dir_w_frames, subset)
     os.makedirs(outdir, exist_ok=True)
 
-    dataset = HololensStreamRecClipDataset(dataset_path, dataset=subset, frames_per_clip=frames_per_clip, modalities=['rgb_frames'])
+    dataset = HololensStreamRecClipDataset(dataset_path, dataset=subset, frames_per_clip=frames_per_clip, modalities=['rgb_frames'], smallDataset=True)
+
     gt_json_path = os.path.join(dataset_path, 'indexing_files', 'db_gt_annotations.json')
-    os.system('cp %s %s' % (gt_json_path, os.path.join(output_dataset_dir_w_frames, 'db_gt_annotations.json')))  # copy gt file
+    # os.system('cp %s %s' % (gt_json_path, os.path.join(output_dataset_dir_w_frames, 'indexing_files', 'db_gt_annotations.json')))  # spagetti code!
+    src_file = gt_json_path
+    target_file = os.path.join(output_dataset_dir_w_frames, 'indexing_files', 'db_gt_annotations.json')
+    copyfile(src_file, target_file)
 
     print("Number of clips in the dataset:{}".format(len(dataset)))
 
@@ -52,8 +58,10 @@ for subset in subsets:
 
     print("Saving point cloud sequences file...")
     for train_batchind, data in enumerate(dataloader):
+        if train_batchind%1000==0:
+            print(f"subset: {subset} done with: {train_batchind} clips out of {len(dataloader)} ")
         inputs, labels, vid_idx, frame_pad = data
-        inputs, labels, vid_idx, frame_pad = inputs['point_clouds'].squeeze(), labels.squeeze(), vid_idx.squeeze(), frame_pad.squeeze()
+        inputs, labels, vid_idx, frame_pad = inputs['rgb_frames'].squeeze(), labels.squeeze(), vid_idx.squeeze(), frame_pad.squeeze()
         out_dict = {'inputs': inputs.detach().cpu().numpy(),
                     'labels': labels.detach().cpu().numpy(),
                     'vid_idx': vid_idx.detach().cpu().numpy(),

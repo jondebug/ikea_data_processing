@@ -4,6 +4,7 @@
 import os
 
 #from torch.utils.tensorboard import SummaryWriter
+import timeit
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # os.environ["CUDA_VISIBLE_DEVICES"]='0,1,2,3'
@@ -22,22 +23,25 @@ from pytorch_i3d import InceptionI3d
 import torchvision
 
 sys.path.append('../../')
-from DataLoader import HololensStreamRecClipDataset
+from DataLoader import HololensStreamRecClipDataset, IKEAEgoDatasetPickleClips
 from tensorboardX import SummaryWriter
 #import W&B
 # from PIL import Image
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', type=str, default='rgb', help='rgb or flow')
+# parser.add_argument('--mode', type=str, default='manual_pick_up', help='rgb or flow')
+
 parser.add_argument('--frame_skip', type=int, default=1, help='reduce fps by skippig frames')
 parser.add_argument('--steps_per_update', type=int, default=10, help='number of steps per backprop update')
 parser.add_argument('--frames_per_clip', type=int, default=32, help='number of frames in a clip sequence')
 parser.add_argument('--batch_size', type=int, default=16, help='number of clips per batch')
 parser.add_argument('--db_filename', type=str, default='ikea_annotation_db_full',
                     help='database file name within dataset path')
-parser.add_argument('--logdir', type=str, default='./log/debug/', help='path to model save dir')
-parser.add_argument('--dataset_path', type=str,
-                    default=r'C:\TinyDataset', help='path to dataset')
+parser.add_argument('--logdir', type=str, default=r'C:\i3d_logs\\', help='path to model save dir')
+parser.add_argument('--dataset_path', type=str, default=r'C:\TinyPickleDataset', help='path to dataset')
+# parser.add_argument('--dataset_path', type=str, default=r'C:\TinyDataset', help='path to dataset')
+
 parser.add_argument('--load_mode', type=str, default='img', help='dataset loader mode to load videos or images: '
                                                                  'vid | img')
 parser.add_argument('--camera', type=str, default='dev2', help='dataset camera view: dev1 | dev2 | dev3 ')
@@ -45,18 +49,19 @@ parser.add_argument('--refine', action="store_true", help='flag to refine the mo
 parser.add_argument('--refine_epoch', type=int, default=0, help='refine model from this epoch')
 parser.add_argument('--input_type', type=str, default='rgb', help='depth | rgb | flow support will be added later')
 parser.add_argument('--pretrained_model', type=str, default='charades', help='charades | imagenet')
-parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
+parser.add_argument('--lr', type=float, default=0.002, help='learning rate')
 args = parser.parse_args()
 
-
-def run(init_lr=0.001, max_steps=64e3, frames_per_clip=2, mode='rgb',
-        dataset_path='C:\TinyDataset',
+# TODO: change mode back to 'rgb'
+def run(init_lr=0.001, max_steps=80, frames_per_clip=2, mode='rgb',
+        dataset_path=None,
         train_filename='all_train_dir_list.txt', testset_filename='all_test_dir_list.txt',
         db_filename='../ikea_dataset_frame_labeler/ikea_annotation_db', logdir='',
         frame_skip=1, batch_size=8, camera='dev3', refine=False, refine_epoch=0, load_mode='vid',
         input_type='rgb', pretrained_model='charades', steps_per_update=1):
+    pickle_flag = True if 'Pickle' in dataset_path else False
+    print(f"pickle flag: {pickle_flag}")
     os.makedirs(logdir, exist_ok=True)
-
     # setup dataset
     train_transforms_horizontal_flip = transforms.Compose([videotransforms.RandomCrop(224),
                                            videotransforms.RandomHorizontalFlip(),
@@ -68,28 +73,38 @@ def run(init_lr=0.001, max_steps=64e3, frames_per_clip=2, mode='rgb',
     #TODO: change resize to larger resize and the random crop
     # resize_trans = torchvision.transforms.Resize((224, 224))
     # resize_trans = torchvision.transforms.RandomCrop((224, 224))
-
-    train_dataset = HololensStreamRecClipDataset(dataset_path, train_filename=train_filename,
+    if pickle_flag:
+        dataset_path = os.path.join(dataset_path, str(frames_per_clip))
+        train_dataset = IKEAEgoDatasetPickleClips(dataset_path=dataset_path, train_trans=train_transforms, test_trans=test_transforms,
+                                                    set='train')
+    else:
+        train_dataset = HololensStreamRecClipDataset(dataset_path, train_filename=train_filename,
                                                  rgb_transform=train_transforms, dataset='train', frame_skip=frame_skip,
                                                  frames_per_clip=frames_per_clip, modalities=["rgb_frames"], smallDataset=True)
-    print("Number of clips in the dataset:{}".format(len(train_dataset)))
+    print("Number of clips in the training dataset:{}".format(len(train_dataset)))
     # print(train_dataset.clip_label_count)
     weights = utils.make_weights_for_balanced_classes(train_dataset.clip_set, train_dataset.clip_label_count)
     sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, len(weights))
 
     train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, sampler=sampler,
-                                                   num_workers=0, pin_memory=True)
-
+                                                   num_workers=6, pin_memory=True)
     # db_filename = dataset_path + r'\indexing_files\db_gt_annotations.json',  resize=None, mode=load_mode, input_type=input_type
-    test_dataset = HololensStreamRecClipDataset(dataset_path, train_filename=train_filename,
+    if pickle_flag:
+        test_dataset = IKEAEgoDatasetPickleClips(dataset_path=dataset_path, train_trans=train_transforms, test_trans=test_transforms,
+                                                    set='test')
+    else:
+        test_dataset = HololensStreamRecClipDataset(dataset_path, train_filename=train_filename,
                                                 test_filename=testset_filename, rgb_transform=test_transforms,
                                                 dataset='test', frame_skip=frame_skip, frames_per_clip=frames_per_clip,
                                                 modalities=["rgb_frames"], smallDataset=True)
 
-    test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=True, num_workers=0,
+    test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=True, num_workers=6,
                                                   pin_memory=True)
 
     # setup the model
+    if mode == 'manual_pick_up':
+        i3d = InceptionI3d(157, in_channels=3)
+        i3d.load_state_dict(torch.load(r'C:\i3d_logs\000007.pt'))
     if mode == 'flow':
         i3d = InceptionI3d(400, in_channels=2)
         i3d.load_state_dict(torch.load(r'.\pretrained_models\flow_' + pretrained_model + '.pt'))
@@ -162,22 +177,24 @@ def run(init_lr=0.001, max_steps=64e3, frames_per_clip=2, mode='rgb',
 
         # Iterate over data.
         avg_acc = []
-        for train_batchind, data in enumerate(train_dataloader):
+        prev_time = timeit.default_timer()
 
+        for train_batchind, data in enumerate(train_dataloader):
+            start = timeit.default_timer()
+            print(f"total time for fp with data load: {start - prev_time}")
+            prev_time = start
             num_iter += 1
             # get the inputs
             input_dict, labels, vid_idx, frame_pad = data
-            print(vid_idx, frame_pad)
+            # print(vid_idx, frame_pad)
             # wrap them in Variable
             inputs = input_dict['rgb_frames'].float()
             inputs = Variable(inputs.cuda(), requires_grad=True)
-            print((batch_size, 3, frames_per_clip, 540, 960))
             #TODO: change hardcoded numbers
             # inputs = torch.reshape(inputs, (batch_size, 3, frames_per_clip, 540, 960))
             # inputs = torch.reshape(inputs, (batch_size, 3, frames_per_clip, 224, 224))
             inputs = torch.permute(inputs, (0, 2, 1, 3, 4))
             labels = Variable(labels.cuda())
-            print(inputs.size)
             t = inputs.size(2)
             per_frame_logits = i3d(inputs)
             per_frame_logits = F.interpolate(per_frame_logits, t, mode='linear', align_corners=True)
@@ -202,6 +219,7 @@ def run(init_lr=0.001, max_steps=64e3, frames_per_clip=2, mode='rgb',
             train_fraction_done = (train_batchind + 1) / train_num_batch
             print('[{}] train Acc: {}, Loss: {:.4f} [{} / {}]'.format(steps, acc.item(), loss.item(), train_batchind,
                                                                       len(train_dataloader)))
+
             if (num_iter == num_steps_per_update or train_batchind == len(train_dataloader) - 1):
                 n_steps = num_steps_per_update
                 if train_batchind == len(train_dataloader) - 1:
@@ -253,7 +271,7 @@ def run(init_lr=0.001, max_steps=64e3, frames_per_clip=2, mode='rgb',
                 test_writer.add_scalar('Accuracy', acc.item(), n_examples)
                 test_fraction_done = (test_batchind + 1) / test_num_batch
                 i3d.train(True)
-        if steps % 2 == 0:
+        if steps % 1 == 0:
             # save model
             torch.save({"model_state_dict": i3d.module.state_dict(),
                         "optimizer_state_dict": optimizer.state_dict(),
