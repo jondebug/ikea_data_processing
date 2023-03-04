@@ -14,6 +14,7 @@ import torch
 import matplotlib.pyplot as plt
 import tensorflow as tf
 
+import utils
 from i3d.ego_i3d import videotransforms
 from utils import getNumRecordings, getListFromFile, getNumFrames, saveVideoClip, addTextToImg, read16BitPGM, imread_pgm
 import json
@@ -29,7 +30,7 @@ class IKEAEgoDatasetPickleClips(Dataset):
     IKEA Action Dataset class with pre-saved clips into pickles
     """
 
-    def __init__(self, dataset_path, set, train_trans, test_trans):
+    def __init__(self, dataset_path, set='train', train_trans=None, test_trans=None):
         #TODO add support for point cloud downsampling using FPS and random sampling
         self.dataset_path = dataset_path
         self.set = set
@@ -146,6 +147,45 @@ class HololensStreamRecBase():
     def __len__(self):
         return
 
+    # def get_actions_labels_from_json(self, json_filename, mode='gt'):
+    #     """
+    #
+    #      Loads a label segment .json file (ActivityNet format
+    #       http://activity-net.org/challenges/2020/tasks/anet_localization.html) and converts to frame labels for evaluation
+    #
+    #     Parameters
+    #     ----------
+    #     json_filename : output .json file name (full path)
+    #     Returns
+    #     -------
+    #     frame_labels: one_hot frame labels (allows multi-label)
+    #     """
+    #     labels = []
+    #     with open(json_filename, 'r') as json_file:
+    #         json_dict = json.load(json_file)
+    #
+    #     if mode == 'gt':
+    #         video_results = json_dict["database"]
+    #     else:
+    #         video_results = json_dict["results"]
+    #     for scan_path in video_results:
+    #         video_path = os.path.join(scan_path, 'images')
+    #         video_idx = self.get_video_id_from_video_path(video_path)
+    #         video_info = self.get_video_table(video_idx).fetchone()
+    #         n_frames = video_info["nframes"]
+    #         current_labels = np.zeros([n_frames, self.num_classes])
+    #         if mode == 'gt':
+    #             segments = video_results[scan_path]['annotation']
+    #         else:
+    #             segments = video_results[scan_path]
+    #         for segment in segments:
+    #             action_idx = self.action_list.index(segment["label"])
+    #             start = segment['segment'][0]
+    #             end = segment['segment'][1]
+    #             current_labels[start:end, action_idx] = 1
+    #         labels.append(current_labels)
+    #     return labels
+    #
     def get_video_info_table(self, dataset):
         """
         fetch the annotated videos table from the database
@@ -209,7 +249,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
     def __init__(self, dataset_path, furniture_list: list = [], action_list_filename='action_list.txt',
                  train_filename='all_train_dir_list.txt', test_filename='all_test_dir_list.txt', rgb_transform=None,
                  gt_annotation_filename='db_gt_annotations.json', modalities=["all"], frame_skip=1, frames_per_clip=32,
-                 dataset="train", rgb_label_watermark=False, furniture_mod = ["all"], smallDataset=False):
+                 dataset="train", rgb_label_watermark=False, furniture_mod = ["all"], smallDataset=False, eye_crop_transform=False):
 
         super().__init__(dataset_path, furniture_list, action_list_filename,
                          train_filename, test_filename, rgb_transform, gt_annotation_filename)
@@ -217,6 +257,7 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         # self.camera = camera
         # self.resize = resize
         # self.input_type = input_type
+        self.eye_crop_transform = eye_crop_transform
         self.smallDataset = smallDataset
         self.furniture_mod = furniture_mod
         self.rgb_label_watermark = rgb_label_watermark
@@ -445,7 +486,13 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         #print(len(frames), len(frames[0]), len(frames[0][0]), len(frames[0][0][0]))
         frames =torch.stack(frames)
         # (t,h,w,c)
-        if self.rgb_transform is not None:
+        if self.eye_crop_transform==True:
+            assert 'eye_data_frames' in self.modalities
+            eye_focus_points = self.load_data_frames_from_csv(
+                rec_dir, frame_indices, filename="norm_proc_eye_data.csv")
+            frames = utils.offcenterCrop(frames, eye_focus_points)
+
+        elif self.rgb_transform is not None:
             #TODO: apply transform iteratively to frames
             frames = torch.permute(frames, (0, 2, 3, 1))
             frames = self.rgb_transform(frames)

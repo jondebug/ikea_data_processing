@@ -80,7 +80,7 @@ def run(init_lr=0.001, max_steps=80, frames_per_clip=2, mode='rgb',
     else:
         train_dataset = HololensStreamRecClipDataset(dataset_path, train_filename=train_filename,
                                                  rgb_transform=train_transforms, dataset='train', frame_skip=frame_skip,
-                                                 frames_per_clip=frames_per_clip, modalities=["rgb_frames"], smallDataset=True)
+                                                 frames_per_clip=frames_per_clip, modalities=['rgb_frames', 'eye_data_frames'], smallDataset=True)
     print("Number of clips in the training dataset:{}".format(len(train_dataset)))
     # print(train_dataset.clip_label_count)
     weights = utils.make_weights_for_balanced_classes(train_dataset.clip_set, train_dataset.clip_label_count)
@@ -96,7 +96,7 @@ def run(init_lr=0.001, max_steps=80, frames_per_clip=2, mode='rgb',
         test_dataset = HololensStreamRecClipDataset(dataset_path, train_filename=train_filename,
                                                 test_filename=testset_filename, rgb_transform=test_transforms,
                                                 dataset='test', frame_skip=frame_skip, frames_per_clip=frames_per_clip,
-                                                modalities=["rgb_frames"], smallDataset=True)
+                                                modalities=['rgb_frames', 'eye_data_frames'], smallDataset=True)
 
     test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=True, num_workers=6,
                                                   pin_memory=True)
@@ -136,11 +136,12 @@ def run(init_lr=0.001, max_steps=80, frames_per_clip=2, mode='rgb',
     lr = init_lr
 
     optimizer = optim.Adam(i3d.parameters(), lr=lr, weight_decay=1E-6)
-    lr_sched = optim.lr_scheduler.MultiStepLR(optimizer, [10, 20, 30, 40])
+    #lr_sched = optim.lr_scheduler.MultiStepLR(optimizer, [10, 20, 30, 40])
+    lr_sched = optim.lr_scheduler.StepLR(optimizer, step_size=25, gamma=0.5)
 
-    # if refine:
-    #     lr_sched.load_state_dict(checkpoint["lr_state_dict"])
-    #     optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    if refine:
+        lr_sched.load_state_dict(checkpoint["lr_state_dict"])
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
     train_writer = SummaryWriter(os.path.join(logdir, 'train'))
     test_writer = SummaryWriter(os.path.join(logdir, 'test'))
@@ -158,7 +159,7 @@ def run(init_lr=0.001, max_steps=80, frames_per_clip=2, mode='rgb',
         print('Step {}/{}'.format(steps, max_steps))
         print('-' * 10)
         if steps <= refine_epoch and refine and refine_flag:
-            lr_sched.step()
+            #lr_sched.step()
             steps += 1
             n_examples += len(train_dataset.clip_set)
             continue
@@ -271,7 +272,7 @@ def run(init_lr=0.001, max_steps=80, frames_per_clip=2, mode='rgb',
                 test_writer.add_scalar('Accuracy', acc.item(), n_examples)
                 test_fraction_done = (test_batchind + 1) / test_num_batch
                 i3d.train(True)
-        if steps % 1 == 0:
+        if steps % 5 == 0:
             # save model
             torch.save({"model_state_dict": i3d.module.state_dict(),
                         "optimizer_state_dict": optimizer.state_dict(),

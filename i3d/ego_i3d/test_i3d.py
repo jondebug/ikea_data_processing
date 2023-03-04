@@ -18,39 +18,46 @@ from torchvision import transforms
 import videotransforms
 import numpy as np
 from pytorch_i3d import InceptionI3d
-from IKEAActionDataset import IKEAActionVideoClipDataset as Dataset
-
+#from IKEAActionDataset import IKEAActionVideoClipDataset as Dataset
+sys.path.append('../../')
+from DataLoader import HololensStreamRecClipDataset, IKEAEgoDatasetPickleClips
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-mode', type=str, default='rgb', help='rgb | depth, indicating which data to load')
 parser.add_argument('-frame_skip', type=int, default=1, help='reduce fps by skipping frames')
-parser.add_argument('-batch_size', type=int, default=8, help='number of clips per batch')
+parser.add_argument('-batch_size', type=int, default=16, help='number of clips per batch')
 parser.add_argument('-db_filename', type=str,
-                    default='/mnt/IronWolf/Datasets/ANU_ikea_dataset_smaller/ikea_annotation_db_full',
+                    default='ikea_annotation_db_full',
                     help='database file')
-parser.add_argument('-model_path', type=str, default='./log/dev3/',
+parser.add_argument('-model_path', type=str, default=r'C:\i3d_logs\\',
                     help='path to model save dir')
 parser.add_argument('-device', default='dev3', help='which camera to load')
-parser.add_argument('-model', type=str, default='best_classifier.pt', help='path to model save dir')
+parser.add_argument('-model', type=str, default=r'C:\i3d_logs\best_classifier.pt', help='path to model save dir')
 parser.add_argument('-dataset_path', type=str,
-                    default='/mnt/IronWolf/Datasets/ANU_ikea_dataset_smaller/', help='path to dataset')
+                    default=r'C:\TinyPickleDataset\32\\', help='path to dataset')
 args = parser.parse_args()
 
 
-def run(dataset_path, db_filename, model_path, output_path, frames_per_clip=64, mode='rgb',
-        testset_filename='test_cross_env.txt', trainset_filename='train_cross_env.txt', frame_skip=1,
+def run(dataset_path, db_filename, model_path, output_path, frames_per_clip=32, mode='rgb',
+        testset_filename='all_test_dir_list.txt', train_filename='all_train_dir_list.txt', frame_skip=1,
         batch_size=8, device='dev3'):
-
+    pickle_flag = True if 'Pickle' in dataset_path else False
+    print(f"pickle flag: {pickle_flag}")
     pred_output_filename = os.path.join(output_path, 'pred.npy')
     json_output_filename = os.path.join(output_path, 'action_segments.json')
 
     # setup dataset
     test_transforms = transforms.Compose([videotransforms.CenterCrop(224)])
-
-    test_dataset = Dataset(dataset_path, db_filename=db_filename, test_filename=testset_filename,
-                           train_filename=trainset_filename, transform=test_transforms, set='test', camera=device,
-                           frame_skip=frame_skip, frames_per_clip=frames_per_clip, resize=None, mode='img',
-                           input_type=mode)
+    train_transforms = videotransforms.RandomCrop((224, 224)) #videotransforms.RandomCrop((224, 224))
+    test_transforms = videotransforms.CenterCrop([224, 224])
+    if pickle_flag:
+        test_dataset = IKEAEgoDatasetPickleClips(dataset_path=dataset_path, train_trans=train_transforms, test_trans=test_transforms,
+                                                    set='test')
+    else:
+        test_dataset = HololensStreamRecClipDataset(dataset_path, train_filename=train_filename,
+                                                test_filename=testset_filename, rgb_transform=test_transforms,
+                                                dataset='test', frame_skip=frame_skip, frames_per_clip=frames_per_clip,
+                                                modalities=['rgb_frames', 'eye_data_frames'], smallDataset=True)
 
     test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=6,
                                                   pin_memory=True)
@@ -77,10 +84,12 @@ def run(dataset_path, db_filename, model_path, output_path, frames_per_clip=64, 
     for test_batchind, data in enumerate(test_dataloader):
         i3d.train(False)
         # get the inputs
-        inputs, labels, vid_idx, frame_pad = data
-
+        input_dict, labels, vid_idx, frame_pad = data
         # wrap them in Variable
+        inputs = input_dict['rgb_frames'].float()
         inputs = Variable(inputs.cuda(), requires_grad=True)
+        inputs = torch.permute(inputs, (0, 2, 1, 3, 4))
+
         labels = Variable(labels.cuda())
 
         t = inputs.size(2)
@@ -116,4 +125,4 @@ if __name__ == '__main__':
     run(dataset_path=args.dataset_path, db_filename=args.db_filename, model_path=model_path,
         output_path=output_path, frame_skip=args.frame_skip,  mode=args.mode, batch_size=args.batch_size,
         device=args.device)
-    os.system('python3 ../../evaluation/evaluate.py --results_path {} --mode vid'.format(output_path))
+    os.system('python3 evaluation/evaluate.py --results_path {} --mode vid'.format(output_path))
