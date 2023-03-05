@@ -31,7 +31,7 @@ def trim_annotations_to_round_clip_length(gt_labels, clip_length=32):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--results_path', type=str,
-                    default=r'C:\i3d_logs\results',
+                    default=r'C:\i3d_logs_eye_centered\results',
                     help='label prediction file')
 parser.add_argument('--dataset_path', type=str, default=r'C:\TinyDataset',
                     help='path to ground truth action segments json file')

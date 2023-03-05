@@ -1,8 +1,19 @@
 import torchvision
 from numpy import random
+from scipy.stats import bernoulli
 
 import torch
 import numpy as np
+
+
+
+
+def probabilisticShuffleClipFrames(frames, shuffle_prob):
+
+    if bernoulli.rvs(shuffle_prob):
+        return frames[torch.randperm(frames.size()[0])]
+    return frames
+
 
 def offcenterCrop(frames, eye_focus_points, target_w=224, target_h=224, random_offset=False, offcenter_variance=10):
     assert len(frames) == len(eye_focus_points)

@@ -16,6 +16,7 @@ import tensorflow as tf
 
 import utils
 from i3d.ego_i3d import videotransforms, i3d_utils
+from i3d.ego_i3d.i3d_utils import probabilisticShuffleClipFrames
 from utils import getNumRecordings, getListFromFile, getNumFrames, saveVideoClip, addTextToImg, read16BitPGM, imread_pgm
 import json
 import plotly.express as px
@@ -251,7 +252,8 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
                  train_filename='all_train_dir_list.txt', test_filename='all_test_dir_list.txt', rgb_transform=None,
                  gt_annotation_filename='db_gt_annotations.json', modalities=["all"], frame_skip=1, frames_per_clip=32,
                  dataset="train", rgb_label_watermark=False, furniture_mod=["all"], smallDataset=False,
-                 eye_crop_transform=False, rgb_reshape_factor=1, offcenter_variance = 20):
+                 eye_crop_transform=False, rgb_reshape_factor=1, offcenter_variance = 20, flip_prob=0, shuffle_prob=0,
+                 apply_augmentation = False):
 
         super().__init__(dataset_path, furniture_list, action_list_filename,
                          train_filename, test_filename, rgb_transform, gt_annotation_filename)
@@ -259,6 +261,9 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         # self.camera = camera
         # self.resize = resize
         # self.input_type = input_type
+        self.apply_augmentation = apply_augmentation
+        self.flip_prob = flip_prob
+        self.shuffle_prob = shuffle_prob
         self.offcenter_variance = offcenter_variance
         self.eye_crop_transform = eye_crop_transform
         self.smallDataset = smallDataset
@@ -501,7 +506,9 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
             frames = torch.permute(frames, (0, 2, 3, 1))
             frames = self.rgb_transform(frames)
             frames = torch.permute(frames, (0, 3, 1, 2))
-
+        if self.set == 'train' and self.apply_augmentation:
+            frames = probabilisticShuffleClipFrames(frames, shuffle_prob=self.shuffle_prob)
+            frames = videotransforms.RandomHorizontalFlip(self.flip_prob)(frames)
         return frames
 
     #

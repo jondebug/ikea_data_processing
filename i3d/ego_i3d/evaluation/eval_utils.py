@@ -136,7 +136,7 @@ def plot_confusion_matrix(cm,
     if normalize:
         cm_sum = cm.sum(axis=1)[:, np.newaxis]
         cm_sum[cm_sum == 0] = 1
-        cm = cm.ast00ype('float') / cm_sum
+        cm = cm.astype('float') / cm_sum
 
     plt.figure(figsize=(26, 26))
     plt.matshow(cm, cmap=cmap, fignum=1)

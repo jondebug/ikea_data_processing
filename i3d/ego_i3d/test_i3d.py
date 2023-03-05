@@ -29,10 +29,10 @@ parser.add_argument('-batch_size', type=int, default=16, help='number of clips p
 parser.add_argument('-db_filename', type=str,
                     default='ikea_annotation_db_full',
                     help='database file')
-parser.add_argument('-model_path', type=str, default=r'C:\i3d_logs\\',
+parser.add_argument('-model_path', type=str, default=r'C:\i3d_logs_eye_centered_large_var\\',
                     help='path to model save dir')
 parser.add_argument('-device', default='dev3', help='which camera to load')
-parser.add_argument('-model', type=str, default=r'C:\i3d_logs_eye_centered\best_classifier.pt', help='path to model save dir')
+parser.add_argument('-model', type=str, default=r'C:\i3d_logs_eye_centered_large_var\best_classifier.pt', help='path to model save dir')
 parser.add_argument('-dataset_path', type=str,
                     default=r'C:\TinyDataset', help='path to dataset')
 args = parser.parse_args()
@@ -45,19 +45,27 @@ def run(dataset_path, db_filename, model_path, output_path, frames_per_clip=32, 
     print(f"pickle flag: {pickle_flag}")
     pred_output_filename = os.path.join(output_path, 'pred.npy')
     json_output_filename = os.path.join(output_path, 'action_segments.json')
-
+    eye_center = 'eye' in model_path
+    print(f"loading model from {model_path}")
     # setup dataset
     test_transforms = transforms.Compose([videotransforms.CenterCrop(224)])
     train_transforms = videotransforms.RandomCrop((224, 224)) #videotransforms.RandomCrop((224, 224))
     test_transforms = videotransforms.CenterCrop([224, 224])
+
     if pickle_flag:
         test_dataset = IKEAEgoDatasetPickleClips(dataset_path=dataset_path, train_trans=train_transforms, test_trans=test_transforms,
                                                     set='test')
+    elif eye_center:
+        test_dataset = HololensStreamRecClipDataset(dataset_path=dataset_path, test_filename=testset_filename,
+                                               dataset='test', eye_crop_transform=True, smallDataset=True, rgb_transform=test_transforms,
+                                               rgb_reshape_factor=2, frame_skip=frame_skip, frames_per_clip=frames_per_clip,
+                                               modalities=['rgb_frames', 'eye_data_frames'])
     else:
         test_dataset = HololensStreamRecClipDataset(dataset_path, train_filename=train_filename,
                                                     test_filename=testset_filename, rgb_transform=test_transforms,
                                                     modalities=['rgb_frames', 'eye_data_frames'], frame_skip=frame_skip,
                                                     frames_per_clip=frames_per_clip, dataset='test', smallDataset=True)
+
 
     test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=6,
                                                   pin_memory=True)

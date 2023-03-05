@@ -52,6 +52,9 @@ parser.add_argument('--input_type', type=str, default='rgb', help='depth | rgb |
 parser.add_argument('--pretrained_model', type=str, default='charades', help='charades | imagenet')
 parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
 parser.add_argument('--offcenter_variance', type=float, default=30, help='offcenter pixel variance for eye centered images')
+parser.add_argument('--apply_augmentation', type=float, default=30, help='apply augmentation to rgb clips in hope of generalizatin')
+parser.add_argument('--flip_prob', type=float, default=0.08, help='horizontal flip probability')
+parser.add_argument('--shuffle_prob', type=float, default=0.08, help='shuffle images in clip probability')
 
 args = parser.parse_args()
 
@@ -61,7 +64,8 @@ def run(init_lr=0.001, max_steps=50, frames_per_clip=2, mode='rgb',
         train_filename='all_train_dir_list.txt', testset_filename='all_test_dir_list.txt',
         db_filename='../ikea_dataset_frame_labeler/ikea_annotation_db', logdir='',
         frame_skip=1, batch_size=8, camera='dev3', refine=False, refine_epoch=0, load_mode='vid',
-        input_type='rgb', pretrained_model='charades', steps_per_update=1, offcenter_variance=20):
+        input_type='rgb', pretrained_model='charades', steps_per_update=1, offcenter_variance=20,
+        apply_augmentation=False, flip_prob=0, shuffle_prob=0):
     pickle_flag = True if 'Pickle' in dataset_path else False
     print(f"pickle flag: {pickle_flag}")
     os.makedirs(logdir, exist_ok=True)
@@ -84,7 +88,8 @@ def run(init_lr=0.001, max_steps=50, frames_per_clip=2, mode='rgb',
         train_dataset = HololensStreamRecClipDataset(dataset_path=dataset_path, train_filename=train_filename,
                                                dataset='train', eye_crop_transform=True, smallDataset=True, rgb_transform=train_transforms,
                                                rgb_reshape_factor=2, frame_skip=frame_skip, frames_per_clip=frames_per_clip,
-                                               modalities=['rgb_frames', 'eye_data_frames'], offcenter_variance=offcenter_variance)
+                                               modalities=['rgb_frames', 'eye_data_frames'], offcenter_variance=offcenter_variance,
+                                               apply_augmentation=apply_augmentation, shuffle_prob=shuffle_prob, flip_prob=flip_prob)
     else:
         train_dataset = HololensStreamRecClipDataset(dataset_path, train_filename=train_filename,
                                                      rgb_transform=train_transforms,
@@ -309,4 +314,5 @@ if __name__ == '__main__':
         frame_skip=args.frame_skip, db_filename=args.db_filename, batch_size=args.batch_size, camera=args.camera,
         refine=args.refine, refine_epoch=args.refine_epoch, load_mode=args.load_mode, input_type=args.input_type,
         pretrained_model=args.pretrained_model, steps_per_update=args.steps_per_update,
-        frames_per_clip=args.frames_per_clip, eye_center=args.eye_center, offcenter_variance=args.offcenter_variance)
+        frames_per_clip=args.frames_per_clip, eye_center=args.eye_center, offcenter_variance=args.offcenter_variance,
+        apply_augmentation=args.apply_augmentation, shuffle_prob=args.shuffle_prob, flip_prob=args.flip_prob)
