@@ -38,9 +38,10 @@ parser.add_argument('--frames_per_clip', type=int, default=32, help='number of f
 parser.add_argument('--batch_size', type=int, default=16, help='number of clips per batch')
 parser.add_argument('--db_filename', type=str, default='ikea_annotation_db_full',
                     help='database file name within dataset path')
-parser.add_argument('--logdir', type=str, default=r'C:\i3d_logs\\', help='path to model save dir')
-parser.add_argument('--dataset_path', type=str, default=r'C:\TinyPickleDataset', help='path to dataset')
+parser.add_argument('--logdir', type=str, default=r'C:\i3d_logs_eye_centered_var_30\\', help='path to model save dir')
+parser.add_argument('--dataset_path', type=str, default=r'C:\TinyDataset', help='path to dataset')
 # parser.add_argument('--dataset_path', type=str, default=r'C:\TinyDataset', help='path to dataset')
+parser.add_argument('--eye_center', type=str, default=True, help='crop around eye focal point')
 
 parser.add_argument('--load_mode', type=str, default='img', help='dataset loader mode to load videos or images: '
                                                                  'vid | img')
@@ -49,16 +50,18 @@ parser.add_argument('--refine', action="store_true", help='flag to refine the mo
 parser.add_argument('--refine_epoch', type=int, default=0, help='refine model from this epoch')
 parser.add_argument('--input_type', type=str, default='rgb', help='depth | rgb | flow support will be added later')
 parser.add_argument('--pretrained_model', type=str, default='charades', help='charades | imagenet')
-parser.add_argument('--lr', type=float, default=0.002, help='learning rate')
+parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
+parser.add_argument('--offcenter_variance', type=float, default=30, help='offcenter pixel variance for eye centered images')
+
 args = parser.parse_args()
 
 # TODO: change mode back to 'rgb'
-def run(init_lr=0.001, max_steps=80, frames_per_clip=2, mode='rgb',
-        dataset_path=None,
+def run(init_lr=0.001, max_steps=50, frames_per_clip=2, mode='rgb',
+        dataset_path=None, eye_center=True,
         train_filename='all_train_dir_list.txt', testset_filename='all_test_dir_list.txt',
         db_filename='../ikea_dataset_frame_labeler/ikea_annotation_db', logdir='',
         frame_skip=1, batch_size=8, camera='dev3', refine=False, refine_epoch=0, load_mode='vid',
-        input_type='rgb', pretrained_model='charades', steps_per_update=1):
+        input_type='rgb', pretrained_model='charades', steps_per_update=1, offcenter_variance=20):
     pickle_flag = True if 'Pickle' in dataset_path else False
     print(f"pickle flag: {pickle_flag}")
     os.makedirs(logdir, exist_ok=True)
@@ -77,10 +80,17 @@ def run(init_lr=0.001, max_steps=80, frames_per_clip=2, mode='rgb',
         dataset_path = os.path.join(dataset_path, str(frames_per_clip))
         train_dataset = IKEAEgoDatasetPickleClips(dataset_path=dataset_path, train_trans=train_transforms, test_trans=test_transforms,
                                                     set='train')
+    elif eye_center:
+        train_dataset = HololensStreamRecClipDataset(dataset_path=dataset_path, train_filename=train_filename,
+                                               dataset='train', eye_crop_transform=True, smallDataset=True, rgb_transform=train_transforms,
+                                               rgb_reshape_factor=2, frame_skip=frame_skip, frames_per_clip=frames_per_clip,
+                                               modalities=['rgb_frames', 'eye_data_frames'], offcenter_variance=offcenter_variance)
     else:
         train_dataset = HololensStreamRecClipDataset(dataset_path, train_filename=train_filename,
-                                                 rgb_transform=train_transforms, dataset='train', frame_skip=frame_skip,
-                                                 frames_per_clip=frames_per_clip, modalities=['rgb_frames', 'eye_data_frames'], smallDataset=True)
+                                                     rgb_transform=train_transforms,
+                                                     modalities=['rgb_frames'],
+                                                     frame_skip=frame_skip, frames_per_clip=frames_per_clip,
+                                                     dataset='train', smallDataset=True)
     print("Number of clips in the training dataset:{}".format(len(train_dataset)))
     # print(train_dataset.clip_label_count)
     weights = utils.make_weights_for_balanced_classes(train_dataset.clip_set, train_dataset.clip_label_count)
@@ -92,11 +102,16 @@ def run(init_lr=0.001, max_steps=80, frames_per_clip=2, mode='rgb',
     if pickle_flag:
         test_dataset = IKEAEgoDatasetPickleClips(dataset_path=dataset_path, train_trans=train_transforms, test_trans=test_transforms,
                                                     set='test')
+    elif eye_center:
+        test_dataset = HololensStreamRecClipDataset(dataset_path=dataset_path, test_filename=testset_filename,
+                                               dataset='test', eye_crop_transform=True, smallDataset=True, rgb_transform=test_transforms,
+                                               rgb_reshape_factor=2, frame_skip=frame_skip, frames_per_clip=frames_per_clip,
+                                               modalities=['rgb_frames', 'eye_data_frames'])
     else:
         test_dataset = HololensStreamRecClipDataset(dataset_path, train_filename=train_filename,
-                                                test_filename=testset_filename, rgb_transform=test_transforms,
-                                                dataset='test', frame_skip=frame_skip, frames_per_clip=frames_per_clip,
-                                                modalities=['rgb_frames', 'eye_data_frames'], smallDataset=True)
+                                                    test_filename=testset_filename, rgb_transform=test_transforms,
+                                                    modalities=['rgb_frames', 'eye_data_frames'], frame_skip=frame_skip,
+                                                    frames_per_clip=frames_per_clip, dataset='test', smallDataset=True)
 
     test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=True, num_workers=6,
                                                   pin_memory=True)
@@ -137,7 +152,7 @@ def run(init_lr=0.001, max_steps=80, frames_per_clip=2, mode='rgb',
 
     optimizer = optim.Adam(i3d.parameters(), lr=lr, weight_decay=1E-6)
     #lr_sched = optim.lr_scheduler.MultiStepLR(optimizer, [10, 20, 30, 40])
-    lr_sched = optim.lr_scheduler.StepLR(optimizer, step_size=25, gamma=0.5)
+    lr_sched = optim.lr_scheduler.StepLR(optimizer, step_size=12, gamma=0.5)
 
     if refine:
         lr_sched.load_state_dict(checkpoint["lr_state_dict"])
@@ -294,4 +309,4 @@ if __name__ == '__main__':
         frame_skip=args.frame_skip, db_filename=args.db_filename, batch_size=args.batch_size, camera=args.camera,
         refine=args.refine, refine_epoch=args.refine_epoch, load_mode=args.load_mode, input_type=args.input_type,
         pretrained_model=args.pretrained_model, steps_per_update=args.steps_per_update,
-        frames_per_clip=args.frames_per_clip)
+        frames_per_clip=args.frames_per_clip, eye_center=args.eye_center, offcenter_variance=args.offcenter_variance)

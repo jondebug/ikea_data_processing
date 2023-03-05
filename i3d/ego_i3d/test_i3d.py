@@ -32,9 +32,9 @@ parser.add_argument('-db_filename', type=str,
 parser.add_argument('-model_path', type=str, default=r'C:\i3d_logs\\',
                     help='path to model save dir')
 parser.add_argument('-device', default='dev3', help='which camera to load')
-parser.add_argument('-model', type=str, default=r'C:\i3d_logs\best_classifier.pt', help='path to model save dir')
+parser.add_argument('-model', type=str, default=r'C:\i3d_logs_eye_centered\best_classifier.pt', help='path to model save dir')
 parser.add_argument('-dataset_path', type=str,
-                    default=r'C:\TinyPickleDataset\32\\', help='path to dataset')
+                    default=r'C:\TinyDataset', help='path to dataset')
 args = parser.parse_args()
 
 
@@ -55,9 +55,9 @@ def run(dataset_path, db_filename, model_path, output_path, frames_per_clip=32, 
                                                     set='test')
     else:
         test_dataset = HololensStreamRecClipDataset(dataset_path, train_filename=train_filename,
-                                                test_filename=testset_filename, rgb_transform=test_transforms,
-                                                dataset='test', frame_skip=frame_skip, frames_per_clip=frames_per_clip,
-                                                modalities=['rgb_frames', 'eye_data_frames'], smallDataset=True)
+                                                    test_filename=testset_filename, rgb_transform=test_transforms,
+                                                    modalities=['rgb_frames', 'eye_data_frames'], frame_skip=frame_skip,
+                                                    frames_per_clip=frames_per_clip, dataset='test', smallDataset=True)
 
     test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=6,
                                                   pin_memory=True)

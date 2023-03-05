@@ -31,7 +31,8 @@ for subset in subsets:
     outdir = os.path.join(output_dataset_dir_w_frames, subset)
     os.makedirs(outdir, exist_ok=True)
 
-    dataset = HololensStreamRecClipDataset(dataset_path, dataset=subset, frames_per_clip=frames_per_clip, modalities=['rgb_frames'], smallDataset=True)
+    dataset = HololensStreamRecClipDataset(dataset_path, modalities=['rgb_frames'], frames_per_clip=frames_per_clip,
+                                           dataset=subset, smallDataset=True)
 
     gt_json_path = os.path.join(dataset_path, 'indexing_files', 'db_gt_annotations.json')
     # os.system('cp %s %s' % (gt_json_path, os.path.join(output_dataset_dir_w_frames, 'indexing_files', 'db_gt_annotations.json')))  # spagetti code!

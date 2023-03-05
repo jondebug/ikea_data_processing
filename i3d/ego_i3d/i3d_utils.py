@@ -1,5 +1,45 @@
+import torchvision
+from numpy import random
+
 import torch
 import numpy as np
+
+def offcenterCrop(frames, eye_focus_points, target_w=224, target_h=224, random_offset=False, offcenter_variance=10):
+    assert len(frames) == len(eye_focus_points)
+    num_frames = len(frames)
+    channels, base_h, base_w = frames[0].shape
+    assert base_h >= target_h and base_w >= target_w
+
+    min_center_w = target_w/2
+    max_center_w = base_w - target_w/2
+
+    min_center_h = target_h/2
+    max_center_h = base_h - target_h/2
+
+    if random_offset:
+        random_offset = torch.from_numpy(random.normal(loc=0.0, scale=offcenter_variance, size=eye_focus_points.shape)) #scale=target_h/10
+        target_focus_points = random_offset + eye_focus_points
+    else:
+        target_focus_points = eye_focus_points
+
+    #apply limitiations:
+    target_focus_points[:,0] = torch.minimum(torch.maximum(target_focus_points[:, 0], torch.ones(num_frames)*min_center_w), torch.ones(num_frames)*max_center_w).to(torch.int)
+    target_focus_points[:,1] = torch.minimum(torch.maximum(target_focus_points[:, 1], torch.ones(num_frames)*min_center_h), torch.ones(num_frames)*max_center_h).to(torch.int)
+
+    top_limit_vec = target_focus_points[:, 1] - target_h/2
+    left_limit_vec = target_focus_points[:, 0] - target_w/2
+    # frames = torch.permute(frames, (0, 2, 3, 1))
+    cropped_frames = []
+    # frame_num=0
+    for frame, top_limit, left_limit in zip(frames, top_limit_vec.to(torch.int), left_limit_vec.to(torch.int)):
+        cropped_frame = torchvision.transforms.functional.crop(frame, top=top_limit, left=left_limit, height=target_h, width=target_w)
+        cropped_frames.append(cropped_frame)
+        # torchvision.utils.save_image(cropped_frame.float()/256, r'D:\eye_centered_images\{}_frame.png'.format(frame_num))
+        # frame_num+=1
+    cropped_frames = torch.stack(tensors=cropped_frames)
+    # cropped_frames = torch.permute(cropped_frames, (0, 3, 1, 2))
+
+    return cropped_frames
 def accuracy(output, target):
     """Computes the precision@k for the specified values of k"""
 

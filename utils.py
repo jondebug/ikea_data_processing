@@ -19,8 +19,6 @@ import torchvision.transforms as transforms
 
 from hand_defs import HandJointIndex
 
-def offcenterCrop(frames, eye_focus_points):
-    assert len(frames) == len(eye_focus_points)
 
 
 

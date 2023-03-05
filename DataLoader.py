@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 
 import utils
-from i3d.ego_i3d import videotransforms
+from i3d.ego_i3d import videotransforms, i3d_utils
 from utils import getNumRecordings, getListFromFile, getNumFrames, saveVideoClip, addTextToImg, read16BitPGM, imread_pgm
 import json
 import plotly.express as px
@@ -25,13 +25,14 @@ import plyfile
 import pickle
 from torch.utils.data import Dataset
 
+
 class IKEAEgoDatasetPickleClips(Dataset):
     """
     IKEA Action Dataset class with pre-saved clips into pickles
     """
 
     def __init__(self, dataset_path, set='train', train_trans=None, test_trans=None):
-        #TODO add support for point cloud downsampling using FPS and random sampling
+        # TODO add support for point cloud downsampling using FPS and random sampling
         self.dataset_path = dataset_path
         self.set = set
         self.files_path = os.path.join(dataset_path, set)
@@ -39,7 +40,7 @@ class IKEAEgoDatasetPickleClips(Dataset):
         self.file_list.sort()
         self.rgb_transform = train_trans if set == 'train' else test_trans
         # backwards compatibility
-        with open(os.path.join(self.dataset_path, set+'_aux.pickle'), 'rb') as f:
+        with open(os.path.join(self.dataset_path, set + '_aux.pickle'), 'rb') as f:
             aux_data = pickle.load(f)
         self.clip_set = aux_data['clip_set']
         self.clip_label_count = aux_data['clip_label_count']
@@ -61,7 +62,7 @@ class IKEAEgoDatasetPickleClips(Dataset):
         # frames =tf.convert_to_tensor(rgb_frames)
         # (t,h,w,c)
         if self.rgb_transform is not None:
-            #TODO: apply transform iteratively to frames
+            # TODO: apply transform iteratively to frames
             transformed_frames = torch.permute(frames, (0, 2, 3, 1))
             transformed_frames = self.rgb_transform(transformed_frames)
             transformed_frames = torch.permute(transformed_frames, (0, 3, 1, 2))
@@ -106,7 +107,7 @@ class HololensStreamRecBase():
         self.furniture_dirs = [os.path.join(dataset_path, furniture_name) for furniture_name in furniture_list]
 
         for furniture_dir in self.furniture_dirs:
-            #print(furniture_dir)
+            # print(furniture_dir)
             assert os.path.exists(furniture_dir)
 
         self.furniture_dir_sizes = [getNumRecordings(_dir_) for _dir_ in self.furniture_dirs]
@@ -125,7 +126,7 @@ class HololensStreamRecBase():
         self.action_list.sort()
         if "N/A" in self.action_list:
             self.action_list.remove("N/A")
-        #print(self.action_list)
+        # print(self.action_list)
         self.action_list.insert(0, "N/A")  # 0 label for unlabled frames
         self.num_classes = len(self.action_list)
         self.train_video_list = getListFromFile(self.train_filename)
@@ -136,7 +137,7 @@ class HololensStreamRecBase():
         for action_id, action in enumerate(self.action_list):
             self.action_name_to_id_mapping[action] = action_id
             self.id_to_action_name_mapping[action_id] = action
-        #print(self.action_name_to_id_mapping)
+        # print(self.action_name_to_id_mapping)
 
     def __enter__(self):
         return self
@@ -205,7 +206,7 @@ class HololensStreamRecBase():
         else:
             raise ValueError("Invalid dataset name")
 
-        #print("using json annotation file {}".format(self.gt_annotation_filename))
+        # print("using json annotation file {}".format(self.gt_annotation_filename))
         # with open(self.gt_annotation_filename) as json_file_obj:
         #     db_gt_annotations = json.load(json_file_obj)
 
@@ -249,7 +250,8 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
     def __init__(self, dataset_path, furniture_list: list = [], action_list_filename='action_list.txt',
                  train_filename='all_train_dir_list.txt', test_filename='all_test_dir_list.txt', rgb_transform=None,
                  gt_annotation_filename='db_gt_annotations.json', modalities=["all"], frame_skip=1, frames_per_clip=32,
-                 dataset="train", rgb_label_watermark=False, furniture_mod = ["all"], smallDataset=False, eye_crop_transform=False):
+                 dataset="train", rgb_label_watermark=False, furniture_mod=["all"], smallDataset=False,
+                 eye_crop_transform=False, rgb_reshape_factor=1, offcenter_variance = 20):
 
         super().__init__(dataset_path, furniture_list, action_list_filename,
                          train_filename, test_filename, rgb_transform, gt_annotation_filename)
@@ -257,8 +259,10 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         # self.camera = camera
         # self.resize = resize
         # self.input_type = input_type
+        self.offcenter_variance = offcenter_variance
         self.eye_crop_transform = eye_crop_transform
         self.smallDataset = smallDataset
+        self.rgb_reshape_factor = rgb_reshape_factor
         self.furniture_mod = furniture_mod
         self.rgb_label_watermark = rgb_label_watermark
         self.modalities = modalities
@@ -273,18 +277,18 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
             self.video_list = self.filterFurnitureModalities(self.test_video_list)
         else:
             raise ValueError("Invalid set name")
-        #print("got the following video list: ", self.video_list)
+        # print("got the following video list: ", self.video_list)
         self.annotated_videos = self.get_video_frame_labels()
         self.clip_set, self.clip_label_count = self.get_clips()
-        self.action_labels = [vid_data[1].transpose() for vid_data in self.annotated_videos ]
+        self.action_labels = [vid_data[1].transpose() for vid_data in self.annotated_videos]
 
         # print(self.clip_set)
-        labels =[]
-        clip_labels_count =[]
+        labels = []
+        clip_labels_count = []
         for i, label in enumerate(self.action_list):
             print((label, self.clip_label_count[i]))
             # if(self.clip_label_count[i]>100000):
-                # continue
+            # continue
             labels.append(label)
             clip_labels_count.append(self.clip_label_count[i])
 
@@ -303,7 +307,6 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
                 if f"\HoloLens\\{furniture_name}\\" in rec:
                     filtered_rec_list.append(rec)
         return filtered_rec_list
-
 
     def get_video_frame_labels(self):
         # Extract the label data from the database
@@ -333,30 +336,30 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
                 if action == 'spin screw': action = 'spin screwdriver'
                 if action == 'pick up back panel ': action = 'pick up back panel'
                 if action == 'application interface ': action = 'application interface'
-                if action == 'pick up side panel' : action = 'pick drawer up side panel'
-                if action == 'pick up drawer side panel' : action = 'pick up side panel'
-                if action == 'pick up screw holder (the strange white thing)' : action = 'pick up cam lock'
-                if action == 'insert screw holder (the strange white thing)' : action = 'insert cam lock'
-                if action == 'lay down screwdriver ' : action = 'lay down screwdriver'
-                if action == 'pick up drawer bottom panel ' : action = 'pick up bottom panel'
-                if action == 'allign drawer bottom panel '  or action == 'allign drawer back panel': action = 'N/A' #TODO: fix this!!!
-                if action == 'spin drawer knob screw' : action = 'spin drawer knob'
-                if action == 'pick drawer up side panel' : action =  'pick up side panel'
-                if action == 'pick up stool side ' : action ='pick up stool side'
-                if action ==  'pick up stool beam ': action ='pick up stool beam'
-                if action == 'manually insert stool screw ' : action = 'manually insert stool screw'
-                if action == 'pick up bottom stool step ' : action = 'pick up bottom stool step'
-                if action == 'allign top stool step '  : action = 'allign top stool step'
-                if action == 'flip stool '  : action = 'flip stool'
-                if action == 'pick up cam lock screw' : action = 'pick up long drawer screw'
-                if action == 'allign cam lock screw' : action = 'allign long drawer screw'
-                if action == 'pick up cam lock connecter ' : action = 'pick up cam lock'
-                if action == 'pick up cam lock connecter' : action = 'pick up cam lock'
-                if action == 'insert cam lock connecter' : action = 'insert cam lock'
-                if action == 'allign cam lock connecter ' : action = 'insert cam lock'
-                if action == 'pick up bottom panel ' : action = 'pick up bottom panel'
-                if action == 'default' : action = 'N/A'
-                if action == 'flip whole table' : action = 'flip whole coffee table' #Merge these two labels.
+                if action == 'pick up side panel': action = 'pick drawer up side panel'
+                if action == 'pick up drawer side panel': action = 'pick up side panel'
+                if action == 'pick up screw holder (the strange white thing)': action = 'pick up cam lock'
+                if action == 'insert screw holder (the strange white thing)': action = 'insert cam lock'
+                if action == 'lay down screwdriver ': action = 'lay down screwdriver'
+                if action == 'pick up drawer bottom panel ': action = 'pick up bottom panel'
+                if action == 'allign drawer bottom panel ' or action == 'allign drawer back panel': action = 'N/A'  # TODO: fix this!!!
+                if action == 'spin drawer knob screw': action = 'spin drawer knob'
+                if action == 'pick drawer up side panel': action = 'pick up side panel'
+                if action == 'pick up stool side ': action = 'pick up stool side'
+                if action == 'pick up stool beam ': action = 'pick up stool beam'
+                if action == 'manually insert stool screw ': action = 'manually insert stool screw'
+                if action == 'pick up bottom stool step ': action = 'pick up bottom stool step'
+                if action == 'allign top stool step ': action = 'allign top stool step'
+                if action == 'flip stool ': action = 'flip stool'
+                if action == 'pick up cam lock screw': action = 'pick up long drawer screw'
+                if action == 'allign cam lock screw': action = 'allign long drawer screw'
+                if action == 'pick up cam lock connecter ': action = 'pick up cam lock'
+                if action == 'pick up cam lock connecter': action = 'pick up cam lock'
+                if action == 'insert cam lock connecter': action = 'insert cam lock'
+                if action == 'allign cam lock connecter ': action = 'insert cam lock'
+                if action == 'pick up bottom panel ': action = 'pick up bottom panel'
+                if action == 'default': action = 'N/A'
+                if action == 'flip whole table': action = 'flip whole coffee table'  # Merge these two labels.
                 action_id = self.action_name_to_id_mapping[action]
 
                 # object_id = ann_row["object_id"]
@@ -394,11 +397,10 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         return clip_dataset, label_count
 
     def getLabelsInClipIdx(self, np_labels):
-        #print(np_labels.size)
+        # print(np_labels.size)
         action_strings = [self.id_to_action_name_mapping[np.argmax(np_labels[i])] for i in range(len(np_labels))]
-        #print(action_strings)
+        # print(action_strings)
         return action_strings
-
 
     def load_point_clouds_2(self, rec_dir, frame_indices):
         frames = []
@@ -415,7 +417,6 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
             target_points[:pc.shape[0], :] = torch.from_numpy(pc)
             frames.append(target_points)
         return torch.stack(frames, 0)
-
 
     def load_point_clouds(self, rec_dir, frame_indices):
         point_clouds = []
@@ -434,15 +435,18 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
             point_clouds.append(target_points)
         return torch.stack(point_clouds)
 
-    def load_data_frames_from_csv(self, rec_dir, frame_indices, filename):
+    def load_data_frames_from_csv(self, rec_dir, frame_indices, filename, modality):
         if not self.smallDataset:
             full_rec_csv_path = os.path.join(rec_dir, "norm", filename)
         else:
             full_rec_csv_path = os.path.join(rec_dir, filename)
 
-
         with open(full_rec_csv_path, "rb") as full_rec_csv_f:
             clip_data = np.loadtxt(full_rec_csv_f, delimiter=",")[frame_indices, :]
+            if modality == 'eye_data_frames' and self.rgb_reshape_factor>1:
+                clip_data[:, -2:] = (clip_data[:, -2:]/self.rgb_reshape_factor).astype(dtype=int)
+            if modality == 'hand_data_frames' and self.rgb_reshape_factor > 1:
+                assert False #unhandled case
         return torch.Tensor(clip_data)
 
     def load_depth_frames(self, rec_dir, frame_indices):
@@ -462,12 +466,12 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         # load video file and extract the frames
         np_labels = np.array(labels).T
         frames = []
-        #print("frame indices: ", frame_indices)
+        # print("frame indices: ", frame_indices)
         # TODO: only get labels when watermark is necessary
         str_labels = self.getLabelsInClipIdx(np_labels)
         assert (self.rgb_label_watermark and len(labels) > 0) or not self.rgb_label_watermark
         for frame_num in frame_indices:
-            #print(frame_num)
+            # print(frame_num)
             if not self.smallDataset:
 
                 rgb_frame_full_path = os.path.join(rec_dir, "norm", "pv", "{}.png".format(frame_num))
@@ -483,17 +487,17 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
                 frame = torch.Tensor(torchvision.io.read_image(rgb_frame_full_path))
             frames.append(frame)
 
-        #print(len(frames), len(frames[0]), len(frames[0][0]), len(frames[0][0][0]))
-        frames =torch.stack(frames)
+        # print(len(frames), len(frames[0]), len(frames[0][0]), len(frames[0][0][0]))
+        frames = torch.stack(frames)
         # (t,h,w,c)
-        if self.eye_crop_transform==True:
+        if self.eye_crop_transform == True:
             assert 'eye_data_frames' in self.modalities
             eye_focus_points = self.load_data_frames_from_csv(
-                rec_dir, frame_indices, filename="norm_proc_eye_data.csv")
-            frames = utils.offcenterCrop(frames, eye_focus_points)
-
+                rec_dir, frame_indices, filename="norm_proc_eye_data.csv", modality='eye_data_frames')
+            frames = i3d_utils.offcenterCrop(frames, eye_focus_points[:, -2:], random_offset=self.set == 'train', offcenter_variance=self.offcenter_variance)
+            return frames
         elif self.rgb_transform is not None:
-            #TODO: apply transform iteratively to frames
+            # TODO: apply transform iteratively to frames
             frames = torch.permute(frames, (0, 2, 3, 1))
             frames = self.rgb_transform(frames)
             frames = torch.permute(frames, (0, 3, 1, 2))
@@ -522,22 +526,22 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
         recording_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad = self.clip_set[index]
         recording_full_path = os.path.join(self.dataset_root_path, recording_full_path)
 
-        #print(labels)
+        # print(labels)
         # return video_full_path, labels, frame_ind, n_frames_per_clip, vid_idx, frame_pad
-        #print(f"getting clip from recording {recording_full_path}")
+        # print(f"getting clip from recording {recording_full_path}")
         clip_modalities_dict = {}
         if self.modalities == ["all"]:
-            #print("returning all modalities")
-            #TODO: remove labels argument from load_rgb_frames
+            # print("returning all modalities")
+            # TODO: remove labels argument from load_rgb_frames
             clip_modalities_dict["rgb_frames"] = self.load_rgb_frames(recording_full_path, frame_ind, labels)
             clip_modalities_dict["depth_frames"] = self.load_depth_frames(recording_full_path, frame_ind)
             clip_modalities_dict["point_clouds"] = self.load_point_clouds_2(recording_full_path, frame_ind)
             clip_modalities_dict["eye_data_frames"] = self.load_data_frames_from_csv(recording_full_path, frame_ind,
                                                                                      filename="norm_proc_eye_data.csv")
             clip_modalities_dict["hand_data_frames"] = self.load_data_frames_from_csv(recording_full_path, frame_ind,
-                                                                                     filename="norm_proc_hand_data.csv")
+                                                                                      filename="norm_proc_hand_data.csv")
 
-            return clip_modalities_dict, torch.from_numpy(labels),  vid_idx, frame_pad
+            return clip_modalities_dict, torch.from_numpy(labels), vid_idx, frame_pad
 
         for mod in self.modalities:
             if mod == "rgb_frames":
@@ -549,32 +553,31 @@ class HololensStreamRecClipDataset(HololensStreamRecBase):
                 clip_modalities_dict["depth_frames"] = self.load_depth_frames(recording_full_path, frame_ind)
             elif mod == "eye_data_frames":
                 clip_modalities_dict["eye_data_frames"] = self.load_data_frames_from_csv(
-                    recording_full_path, frame_ind, filename="norm_proc_eye_data.csv")
+                    recording_full_path, frame_ind, filename="norm_proc_eye_data.csv", modality='eye_data_frames')
             elif mod == "hand_data_frames":
                 clip_modalities_dict["hand_data_frames"] = self.load_data_frames_from_csv(
-                    recording_full_path, frame_ind, filename="norm_proc_hand_data.csv")
+                    recording_full_path, frame_ind, filename="norm_proc_hand_data.csv", modality='hand_data_frames')
 
-        return clip_modalities_dict, torch.from_numpy(labels),  vid_idx, frame_pad
+        return clip_modalities_dict, torch.from_numpy(labels), vid_idx, frame_pad
 
         # return self.video_to_tensor(rgb_clip), torch.from_numpy(labels), vid_idx, frame_pad
 
 
-
-
 if __name__ == "__main__":
 
-    dataset_path = r'C:\TinyPickleDataset'
+    dataset_path = r'C:\TinyDataset'
     smallDataset = "SmallDataset" in dataset_path or 'Tiny' in dataset_path
+    tinyDataset = 'Tiny' in dataset_path
     print("SmallDataset: ", smallDataset)
-    train_transforms = videotransforms.RandomCrop((224, 224)) #videotransforms.RandomCrop((224, 224))
-    test_transforms = videotransforms.CenterCrop((224, 224)) #videotransforms.RandomCrop((224, 224))
-    dataset = IKEAEgoDatasetPickleClips(dataset_path=dataset_path, train_trans=train_transforms, test_trans=test_transforms,
-                                  set='train')
+    train_transforms = videotransforms.RandomCrop((224, 224))  # videotransforms.RandomCrop((224, 224))
+    test_transforms = videotransforms.CenterCrop((224, 224))  # videotransforms.RandomCrop((224, 224))
+    dataset = HololensStreamRecClipDataset(dataset_path=dataset_path,
+                                           dataset='train', eye_crop_transform=True, smallDataset=smallDataset,
+                                           rgb_reshape_factor=2, modalities=['rgb_frames', 'eye_data_frames'])
 
     clip_num = 5
     clip_data_dict, labels, vid_idx, frame_pad = dataset[clip_num]
     print(clip_data_dict, labels)
-
 
     exit()
 
@@ -590,10 +593,11 @@ if __name__ == "__main__":
     # run_times = [0]#,0,0,0]
     clip_num = 0
     num_runs = 10
-    train_transforms = videotransforms.RandomCrop((224, 224)) #videotransforms.RandomCrop((224, 224))
+    train_transforms = videotransforms.RandomCrop((224, 224))  # videotransforms.RandomCrop((224, 224))
     train_transforms = None
-    dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=1024,
-                                           rgb_label_watermark=True, modalities=["rgb_frames"], smallDataset=smallDataset, rgb_transform=train_transforms)
+    dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, rgb_transform=train_transforms,
+                                           modalities=["rgb_frames"], frames_per_clip=1024, rgb_label_watermark=True,
+                                           smallDataset=smallDataset)
 
     clip_num = 5
 
@@ -613,10 +617,9 @@ if __name__ == "__main__":
     exit()
     for run in range(num_runs):
         for i, frames_per_clip in enumerate(frames_per_clip_list):
-            dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, frames_per_clip=frames_per_clip,
-                                                   rgb_label_watermark=False, modalities=["depth_frames"])
+            dataset = HololensStreamRecClipDataset(dataset_path, furniture_list, modalities=["depth_frames"],
+                                                   frames_per_clip=frames_per_clip, rgb_label_watermark=False)
             clip_data_dict, labels, vid_idx, frame_pad = dataset[clip_num]
-
 
     fig = plt.figure(figsize=(12, 8))
     ax = fig.add_subplot(111)
@@ -626,12 +629,12 @@ if __name__ == "__main__":
     plt.ylabel('time [ms]')
     plt.title('getitem time for eye and hand data')
     for xy in zip(frames_per_clip_list, run_times):  #
-        ax.annotate(f'({xy[0]:.3f},{1000*xy[1]:.3f})', xy=xy, textcoords='data')
+        ax.annotate(f'({xy[0]:.3f},{1000 * xy[1]:.3f})', xy=xy, textcoords='data')
 
     plt.show()
     exit()
     clip_num = 0
-    clip_data_dict, labels,  vid_idx, frame_pad = dataset[clip_num]
+    clip_data_dict, labels, vid_idx, frame_pad = dataset[clip_num]
     clip_frames = clip_data_dict["rgb_frames"]
     for mod in clip_data_dict.keys():
         print(mod)
@@ -648,7 +651,6 @@ if __name__ == "__main__":
     # c = plt.imshow(np.transpose(clip_frames[0], (1, 2, 0)))
 
     # plt.show()
-
 
     # labels = clip_8[1]
     # print(len(labels), len(labels))
