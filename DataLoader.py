@@ -1,26 +1,12 @@
-# from torch.utils.data import Dataset
-# from pathlib import Path
-import pathlib
-import matplotlib.pyplot as plt
-
-import cv2
-from torchvision import transforms
-import i3d.ego_i3d.videotransforms
-import timeit
 import numpy as np
 import os
 import torchvision
 import torch
-import matplotlib.pyplot as plt
-import tensorflow as tf
-
-import utils
 from i3d.ego_i3d import videotransforms, i3d_utils
 from i3d.ego_i3d.i3d_utils import probabilisticShuffleClipFrames
-from utils import getNumRecordings, getListFromFile, getNumFrames, saveVideoClip, addTextToImg, read16BitPGM, imread_pgm
+from utils import getNumRecordings, getListFromFile, getNumFrames, addTextToImg, imread_pgm
 import json
 import plotly.express as px
-import plotly.graph_objects as go
 import pandas as pd
 import plyfile
 import pickle
